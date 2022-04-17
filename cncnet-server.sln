@@ -1,9 +1,14 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 14
-VisualStudioVersion = 14.0.25123.0
+# Visual Studio Version 17
+VisualStudioVersion = 17.2.32408.312
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "cncnet-server", "cncnet-server.csproj", "{1117E009-9266-4101-BD29-CD47534DCDE1}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "cncnet-server", "cncnet-server\cncnet-server.csproj", "{3D131F58-E0A0-4EAD-AA54-8960A0A20C7C}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{4BAD4ACA-FC40-4EAD-9754-8ECD79265C8E}"
+	ProjectSection(SolutionItems) = preProject
+		.editorconfig = .editorconfig
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -11,12 +16,15 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{1117E009-9266-4101-BD29-CD47534DCDE1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{1117E009-9266-4101-BD29-CD47534DCDE1}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{1117E009-9266-4101-BD29-CD47534DCDE1}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{1117E009-9266-4101-BD29-CD47534DCDE1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3D131F58-E0A0-4EAD-AA54-8960A0A20C7C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3D131F58-E0A0-4EAD-AA54-8960A0A20C7C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3D131F58-E0A0-4EAD-AA54-8960A0A20C7C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3D131F58-E0A0-4EAD-AA54-8960A0A20C7C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {1EEA259D-E85F-4F10-91B0-BCE4EABBC2BC}
 	EndGlobalSection
 EndGlobal
