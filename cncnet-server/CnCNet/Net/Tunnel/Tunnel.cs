@@ -68,7 +68,7 @@ internal abstract class Tunnel : IDisposable
             SocketReceiveFromResult socketReceiveFromResult = await Client.Client.ReceiveFromAsync(buffer, SocketFlags.None, remoteEp, cancellationToken).ConfigureAwait(false);
 
             if (socketReceiveFromResult.ReceivedBytes >= 8)
-                await ReceiveAsync(buffer, socketReceiveFromResult.ReceivedBytes, remoteEp, cancellationToken);
+                await ReceiveAsync(buffer, socketReceiveFromResult.ReceivedBytes, remoteEp, cancellationToken).ConfigureAwait(false);
         }
     }
 
