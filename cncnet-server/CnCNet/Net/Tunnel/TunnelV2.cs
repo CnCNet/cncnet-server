@@ -37,9 +37,9 @@ internal sealed class TunnelV2 : Tunnel
         return app.RunAsync();
     }
 
-    public override async void Dispose()
+    public override async ValueTask DisposeAsync()
     {
-        base.Dispose();
+        await base.DisposeAsync().ConfigureAwait(false);
         mappingsSemaphoreSlim.Dispose();
         connectionCounterSemaphoreSlim.Dispose();
 

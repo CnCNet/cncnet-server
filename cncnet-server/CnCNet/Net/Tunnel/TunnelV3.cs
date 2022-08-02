@@ -28,9 +28,9 @@ internal sealed class TunnelV3 : Tunnel
         MaintenanceMode
     }
 
-    public override void Dispose()
+    public override async ValueTask DisposeAsync()
     {
-        base.Dispose();
+        await base.DisposeAsync().ConfigureAwait(false);
         clientsSemaphoreSlim.Dispose();
     }
 

@@ -4,7 +4,7 @@ using System.Net;
 using System.Net.Sockets;
 using Microsoft.Extensions.Logging;
 
-internal abstract class Tunnel : IDisposable
+internal abstract class Tunnel : IAsyncDisposable
 {
     protected const int CommandRateLimit = 60; // 1 per X seconds
 
@@ -72,10 +72,12 @@ internal abstract class Tunnel : IDisposable
         }
     }
 
-    public virtual void Dispose()
+    public virtual ValueTask DisposeAsync()
     {
         Client.Dispose();
         heartbeatTimer.Dispose();
+
+        return ValueTask.CompletedTask;
     }
 
     protected abstract Task<int> CleanupConnectionsAsync(CancellationToken cancellationToken);
