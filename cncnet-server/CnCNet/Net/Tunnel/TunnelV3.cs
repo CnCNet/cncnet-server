@@ -98,7 +98,7 @@ internal sealed class TunnelV3 : Tunnel
             if (senderId == 0 && receiverId == 0)
             {
                 if (size == 50 && !IsPingLimitReached(remoteEp.Address))
-                    _ = await Client.Client.SendToAsync(buffer.AsMemory()[..12], SocketFlags.None, remoteEp, cancellationToken).ConfigureAwait(false);
+                    _ = await Client!.Client.SendToAsync(buffer.AsMemory()[..12], SocketFlags.None, remoteEp, cancellationToken).ConfigureAwait(false);
 
                 return;
             }
@@ -129,7 +129,7 @@ internal sealed class TunnelV3 : Tunnel
             }
 
             if (Mappings.TryGetValue(receiverId, out TunnelClient? receiver) && !receiver.RemoteEp.Equals(sender.RemoteEp))
-                _ = await Client.Client.SendAsync(buffer.AsMemory()[..size], SocketFlags.None, cancellationToken).ConfigureAwait(false);
+                _ = await Client!.Client.SendAsync(buffer.AsMemory()[..size], SocketFlags.None, cancellationToken).ConfigureAwait(false);
         }
         finally
         {

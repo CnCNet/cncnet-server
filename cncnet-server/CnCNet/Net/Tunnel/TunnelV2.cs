@@ -18,10 +18,11 @@ internal sealed class TunnelV2 : Tunnel
     private readonly SemaphoreSlim connectionCounterSemaphoreSlim = new(1, 1);
     private readonly WebApplication app;
 
-    public TunnelV2(ILogger<TunnelV3> logger, Options options, IHttpClientFactory httpClientFactory)
+    public TunnelV2(ILogger<TunnelV2> logger, Options options, IHttpClientFactory httpClientFactory)
         : base(2, options.TunnelV2Port <= 1024 ? 50000 : options.TunnelV2Port, options.IpLimit < 1 ? 4 : options.IpLimit, logger, options, httpClientFactory)
     {
         WebApplicationBuilder builder = WebApplication.CreateBuilder();
+        builder.Logging.ConfigureLogging(options);
 
         _ = builder.WebHost.UseUrls(FormattableString.Invariant($"http://*:{options.TunnelV2Port}"));
         app = builder.Build();
@@ -98,7 +99,7 @@ internal sealed class TunnelV2 : Tunnel
             if (senderId == 0 && receiverId == 0)
             {
                 if (size == 50 && !IsPingLimitReached(remoteEp.Address))
-                    _ = await Client.Client.SendToAsync(buffer.AsMemory()[..12], SocketFlags.None, remoteEp, cancellationToken).ConfigureAwait(false);
+                    _ = await Client!.Client.SendToAsync(buffer.AsMemory()[..12], SocketFlags.None, remoteEp, cancellationToken).ConfigureAwait(false);
 
                 return;
             }
@@ -111,7 +112,7 @@ internal sealed class TunnelV2 : Tunnel
                 sender.SetLastReceiveTick();
 
                 if (Mappings.TryGetValue(receiverId, out TunnelClient? receiver) && !receiver.RemoteEp.Equals(sender.RemoteEp))
-                    _ = await Client.Client.SendAsync(buffer.AsMemory()[..size], SocketFlags.None, cancellationToken).ConfigureAwait(false);
+                    _ = await Client!.Client.SendAsync(buffer.AsMemory()[..size], SocketFlags.None, cancellationToken).ConfigureAwait(false);
             }
         }
         finally

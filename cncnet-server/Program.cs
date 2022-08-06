@@ -4,22 +4,29 @@ using CommandLine;
 using CommandLine.Text;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
-IHost host = Host.CreateDefaultBuilder(args)
-    .UseWindowsService(o => o.ServiceName = "CnCNetServer")
-    .ConfigureServices((__, services) =>
-    {
-        ParserResult<Options> result = Parser.Default.ParseArguments<Options>(args);
+IHost? host = null;
 
-        Console.WriteLine(HelpText.AutoBuild(result, null, null));
+try
+{
+    ParserResult<Options> result = Parser.Default.ParseArguments<Options>(args);
 
-        Options options = ((Parsed<Options>)result).Value;
+    Console.WriteLine(HelpText.AutoBuild(result, null, null));
 
-        _ = services.AddSingleton(options);
-        _ = services.AddSingleton<TunnelV3>();
-        _ = services.AddSingleton<TunnelV2>();
-        _ = services.AddTransient<PeerToPeerUtil>();
-        _ = services.AddHttpClient(nameof(Tunnel))
+    Options options = ((Parsed<Options>)result).Value;
+
+    host = Host.CreateDefaultBuilder(args)
+        .UseWindowsService(o => o.ServiceName = "CnCNetServer")
+        .ConfigureServices((__, services) =>
+        {
+            _ = services
+                .AddHostedService<CnCNetBackgroundService>()
+                .AddSingleton(options)
+                .AddSingleton<TunnelV3>()
+                .AddSingleton<TunnelV2>()
+                .AddTransient<PeerToPeerUtil>()
+                .AddHttpClient(nameof(Tunnel))
                 .ConfigureHttpClient((_, httpClient) =>
                 {
                     httpClient.BaseAddress = new Uri(options.MasterServerUrl);
@@ -29,8 +36,15 @@ IHost host = Host.CreateDefaultBuilder(args)
                 {
                     AutomaticDecompression = DecompressionMethods.All
                 });
-        _ = services.AddHostedService<CnCNetBackgroundService>();
-    })
-    .Build();
+        })
+        .ConfigureLogging((_, loggingBuilder) => loggingBuilder.ConfigureLogging(options))
+        .Build();
 
-await host.RunAsync().ConfigureAwait(false);
+    await host.RunAsync().ConfigureAwait(false);
+}
+catch (Exception ex)
+{
+    ILogger logger = host!.Services.GetRequiredService<ILogger<Program>>();
+
+    logger.LogExceptionDetails(ex);
+}

@@ -2,6 +2,7 @@
 
 using System.Net;
 using System.Net.Sockets;
+using Microsoft.Extensions.Logging;
 
 internal sealed class PeerToPeerUtil : IDisposable
 {
@@ -14,9 +15,11 @@ internal sealed class PeerToPeerUtil : IDisposable
     private readonly System.Timers.Timer connectionCounterTimer = new(CounterResetInterval);
     private readonly byte[] sendBuffer = new byte[40];
     private readonly SemaphoreSlim connectionCounterSemaphoreSlim = new(1, 1);
+    private readonly ILogger logger;
 
-    public PeerToPeerUtil()
+    public PeerToPeerUtil(ILogger<PeerToPeerUtil> logger)
     {
+        this.logger = logger;
         new Random().NextBytes(sendBuffer);
         Array.Copy(BitConverter.GetBytes(IPAddress.HostToNetworkOrder((short)StunId)), 0, sendBuffer, 6, 2);
     }
@@ -37,18 +40,25 @@ internal sealed class PeerToPeerUtil : IDisposable
 
     private async Task ResetConnectionCounterAsync(CancellationToken cancellationToken)
     {
-        if (cancellationToken.IsCancellationRequested)
-            connectionCounterTimer.Enabled = false;
-
-        await connectionCounterSemaphoreSlim.WaitAsync(cancellationToken).ConfigureAwait(false);
-
         try
         {
-            connectionCounter.Clear();
+            if (cancellationToken.IsCancellationRequested)
+                connectionCounterTimer.Enabled = false;
+
+            await connectionCounterSemaphoreSlim.WaitAsync(cancellationToken).ConfigureAwait(false);
+
+            try
+            {
+                connectionCounter.Clear();
+            }
+            finally
+            {
+                _ = connectionCounterSemaphoreSlim.Release();
+            }
         }
-        finally
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _ = connectionCounterSemaphoreSlim.Release();
+            await logger.LogExceptionDetailsAsync(ex).ConfigureAwait(false);
         }
     }
 
