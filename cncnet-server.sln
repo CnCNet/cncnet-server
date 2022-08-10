@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.2.32408.312
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "cncnet-server", "cncnet-server\cncnet-server.csproj", "{3D131F58-E0A0-4EAD-AA54-8960A0A20C7C}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "cncnet-server", "cncnet-server.csproj", "{3D131F58-E0A0-4EAD-AA54-8960A0A20C7C}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{4BAD4ACA-FC40-4EAD-9754-8ECD79265C8E}"
 	ProjectSection(SolutionItems) = preProject

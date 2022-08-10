@@ -5,7 +5,6 @@ permissions:
   contents: write
 jobs:
   build:
-    if: github.repository == 'Rans4ckeR/cncnet-server'
     runs-on: windows-latest
     steps:
     - name: Checkout
@@ -24,22 +23,22 @@ jobs:
       uses: gittools/actions/gitversion/execute@main
     - name: Publish
       run: |
-        dotnet publish cncnet-server\cncnet-server.csproj -c Release -p:DebugType=embedded -p:AssemblyVersion=$env:GitVersion_AssemblySemVer -p:FileVersion=$env:GitVersion_AssemblySemFileVer -p:InformationalVersion=$env:GitVersion_InformationalVersion
-        dotnet publish cncnet-server\cncnet-server.csproj -c Release -r win-x64 -p:PublishReadyToRun=true -p:PublishReadyToRunComposite=true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=embedded -p:AssemblyVersion=$env:GitVersion_AssemblySemVer -p:FileVersion=$env:GitVersion_AssemblySemFileVer -p:InformationalVersion=$env:GitVersion_InformationalVersion
-        dotnet publish cncnet-server\cncnet-server.csproj -c Release -r win-arm64 -p:PublishReadyToRun=true -p:PublishReadyToRunComposite=true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=embedded -p:AssemblyVersion=$env:GitVersion_AssemblySemVer -p:FileVersion=$env:GitVersion_AssemblySemFileVer -p:InformationalVersion=$env:GitVersion_InformationalVersion
-        dotnet publish cncnet-server\cncnet-server.csproj -c Release -r linux-x64 -p:PublishReadyToRun=true -p:PublishReadyToRunComposite=true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=embedded -p:AssemblyVersion=$env:GitVersion_AssemblySemVer -p:FileVersion=$env:GitVersion_AssemblySemFileVer -p:InformationalVersion=$env:GitVersion_InformationalVersion
-        dotnet publish cncnet-server\cncnet-server.csproj -c Release -r linux-arm64 -p:PublishReadyToRun=true -p:PublishReadyToRunComposite=true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=embedded -p:AssemblyVersion=$env:GitVersion_AssemblySemVer -p:FileVersion=$env:GitVersion_AssemblySemFileVer -p:InformationalVersion=$env:GitVersion_InformationalVersion
-        dotnet publish cncnet-server\cncnet-server.csproj -c Release -r osx-x64 -p:PublishReadyToRun=true -p:PublishReadyToRunComposite=true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=embedded -p:AssemblyVersion=$env:GitVersion_AssemblySemVer -p:FileVersion=$env:GitVersion_AssemblySemFileVer -p:InformationalVersion=$env:GitVersion_InformationalVersion
-        dotnet publish cncnet-server\cncnet-server.csproj -c Release -r osx-arm64 -p:PublishReadyToRun=true -p:PublishReadyToRunComposite=true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=embedded -p:AssemblyVersion=$env:GitVersion_AssemblySemVer -p:FileVersion=$env:GitVersion_AssemblySemFileVer -p:InformationalVersion=$env:GitVersion_InformationalVersion
+        dotnet publish cncnet-server.csproj -c Release -p:DebugType=embedded -p:AssemblyVersion=$env:GitVersion_AssemblySemVer -p:FileVersion=$env:GitVersion_AssemblySemFileVer -p:InformationalVersion=$env:GitVersion_InformationalVersion
+        dotnet publish cncnet-server.csproj -c Release -r win-x64 -p:PublishReadyToRun=true -p:PublishReadyToRunComposite=true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=embedded -p:AssemblyVersion=$env:GitVersion_AssemblySemVer -p:FileVersion=$env:GitVersion_AssemblySemFileVer -p:InformationalVersion=$env:GitVersion_InformationalVersion
+        dotnet publish cncnet-server.csproj -c Release -r win-arm64 -p:PublishReadyToRun=true -p:PublishReadyToRunComposite=true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=embedded -p:AssemblyVersion=$env:GitVersion_AssemblySemVer -p:FileVersion=$env:GitVersion_AssemblySemFileVer -p:InformationalVersion=$env:GitVersion_InformationalVersion
+        dotnet publish cncnet-server.csproj -c Release -r linux-x64 -p:PublishReadyToRun=true -p:PublishReadyToRunComposite=true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=embedded -p:AssemblyVersion=$env:GitVersion_AssemblySemVer -p:FileVersion=$env:GitVersion_AssemblySemFileVer -p:InformationalVersion=$env:GitVersion_InformationalVersion
+        dotnet publish cncnet-server.csproj -c Release -r linux-arm64 -p:PublishReadyToRun=true -p:PublishReadyToRunComposite=true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=embedded -p:AssemblyVersion=$env:GitVersion_AssemblySemVer -p:FileVersion=$env:GitVersion_AssemblySemFileVer -p:InformationalVersion=$env:GitVersion_InformationalVersion
+        dotnet publish cncnet-server.csproj -c Release -r osx-x64 -p:PublishReadyToRun=true -p:PublishReadyToRunComposite=true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=embedded -p:AssemblyVersion=$env:GitVersion_AssemblySemVer -p:FileVersion=$env:GitVersion_AssemblySemFileVer -p:InformationalVersion=$env:GitVersion_InformationalVersion
+        dotnet publish cncnet-server.csproj -c Release -r osx-arm64 -p:PublishReadyToRun=true -p:PublishReadyToRunComposite=true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=embedded -p:AssemblyVersion=$env:GitVersion_AssemblySemVer -p:FileVersion=$env:GitVersion_AssemblySemFileVer -p:InformationalVersion=$env:GitVersion_InformationalVersion
     - name: Zip
       run: |
-        7z a -r ${{ format('cncnet-server-v{0}-net6.0-any.zip', env.GitVersion_SemVer) }} ./cncnet-server/bin/Release/net6.0/publish/*
-        7z a -r ${{ format('cncnet-server-v{0}-net6.0-win-x64.zip', env.GitVersion_SemVer) }} ./cncnet-server/bin/Release/net6.0/win-x64/publish/*
-        7z a -r ${{ format('cncnet-server-v{0}-net6.0-win-arm64.zip', env.GitVersion_SemVer) }} ./cncnet-server/bin/Release/net6.0/win-arm64/publish/*
-        7z a -r ${{ format('cncnet-server-v{0}-net6.0-linux-x64.zip', env.GitVersion_SemVer) }} ./cncnet-server/bin/Release/net6.0/linux-x64/publish/*
-        7z a -r ${{ format('cncnet-server-v{0}-net6.0-linux-arm64.zip', env.GitVersion_SemVer) }} ./cncnet-server/bin/Release/net6.0/linux-arm64/publish/*
-        7z a -r ${{ format('cncnet-server-v{0}-net6.0-osx-x64.zip', env.GitVersion_SemVer) }} ./cncnet-server/bin/Release/net6.0/osx-x64/publish/*
-        7z a -r ${{ format('cncnet-server-v{0}-net6.0-osx-arm64.zip', env.GitVersion_SemVer) }} ./cncnet-server/bin/Release/net6.0/osx-arm64/publish/*
+        7z a -r ${{ format('cncnet-server-v{0}-net6.0-any.zip', env.GitVersion_SemVer) }} ./bin/Release/net6.0/publish/*
+        7z a -r ${{ format('cncnet-server-v{0}-net6.0-win-x64.zip', env.GitVersion_SemVer) }} ./bin/Release/net6.0/win-x64/publish/*
+        7z a -r ${{ format('cncnet-server-v{0}-net6.0-win-arm64.zip', env.GitVersion_SemVer) }} ./bin/Release/net6.0/win-arm64/publish/*
+        7z a -r ${{ format('cncnet-server-v{0}-net6.0-linux-x64.zip', env.GitVersion_SemVer) }} ./bin/Release/net6.0/linux-x64/publish/*
+        7z a -r ${{ format('cncnet-server-v{0}-net6.0-linux-arm64.zip', env.GitVersion_SemVer) }} ./bin/Release/net6.0/linux-arm64/publish/*
+        7z a -r ${{ format('cncnet-server-v{0}-net6.0-osx-x64.zip', env.GitVersion_SemVer) }} ./bin/Release/net6.0/osx-x64/publish/*
+        7z a -r ${{ format('cncnet-server-v{0}-net6.0-osx-arm64.zip', env.GitVersion_SemVer) }} ./bin/Release/net6.0/osx-arm64/publish/*
     - name: Prerelease
       if: ${{ env.GitVersion_PreReleaseTag != '' }}
       run: gh release create ${{ format('v{0}', env.GitVersion_SemVer) }} (get-item *.zip) --generate-notes --target ${{ github.sha }} --prerelease
