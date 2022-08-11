@@ -19,21 +19,22 @@ internal sealed class TunnelV2 : Tunnel
     private readonly WebApplication app;
 
     public TunnelV2(ILogger<TunnelV2> logger, Options options, IHttpClientFactory httpClientFactory)
-        : base(2, options.TunnelV2Port <= 1024 ? 50000 : options.TunnelV2Port, options.IpLimit < 1 ? 4 : options.IpLimit, logger, options, httpClientFactory)
+        : base(2, options.TunnelV2Port <= 1024 ? 50000 : options.TunnelV2Port,
+            options.IpLimit < 1 ? 4 : options.IpLimit, logger, options, httpClientFactory)
     {
         WebApplicationBuilder builder = WebApplication.CreateBuilder();
         builder.Logging.ConfigureLogging(options);
 
-        _ = builder.WebHost.UseUrls(FormattableString.Invariant($"http://*:{options.TunnelV2Port}"));
+        builder.WebHost.UseUrls(FormattableString.Invariant($"http://*:{options.TunnelV2Port}"));
         app = builder.Build();
     }
 
     public Task StartHttpServerAsync()
     {
-        _ = app.MapGet("/maintenance", HandleMaintenanceRequest);
-        _ = app.MapGet("/maintenance/{requestMaintenancePassword}", HandleMaintenanceRequest);
-        _ = app.MapGet("/status", HandleStatusRequest);
-        _ = app.MapGet("/request", HandleRequestRequest);
+        app.MapGet("/maintenance", HandleMaintenanceRequest);
+        app.MapGet("/maintenance/{requestMaintenancePassword}", HandleMaintenanceRequest);
+        app.MapGet("/status", HandleStatusRequest);
+        app.MapGet("/request", HandleRequestRequest);
 
         return app.RunAsync();
     }
@@ -57,8 +58,11 @@ internal sealed class TunnelV2 : Tunnel
         {
             foreach (KeyValuePair<uint, TunnelClient> mapping in Mappings.Where(x => x.Value.TimedOut).ToList())
             {
-                _ = Mappings.Remove(mapping.Key);
-                Logger.LogMessage(FormattableString.Invariant($"Removed V{Version} client from {mapping.Value.RemoteEp}, {Mappings.Count} clients from {Mappings.Values.Select(q => q.RemoteEp.Address).Distinct().Count()} IPs."));
+                Mappings.Remove(mapping.Key);
+                Logger.LogMessage(
+                    FormattableString.Invariant($"Removed V{Version} client from {mapping.Value.RemoteEp}") +
+                    FormattableString.Invariant($", {Mappings.Count} clients from ") +
+                    FormattableString.Invariant($"{Mappings.Values.Select(q => q.RemoteEp.Address).Distinct().Count()} IPs."));
             }
 
             clients = Mappings.Count;
@@ -67,7 +71,7 @@ internal sealed class TunnelV2 : Tunnel
         }
         finally
         {
-            _ = mappingsSemaphoreSlim.Release();
+            mappingsSemaphoreSlim.Release();
         }
 
         await connectionCounterSemaphoreSlim.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -78,19 +82,23 @@ internal sealed class TunnelV2 : Tunnel
         }
         finally
         {
-            _ = connectionCounterSemaphoreSlim.Release();
+            connectionCounterSemaphoreSlim.Release();
         }
 
         return clients;
     }
 
-    protected override async Task ReceiveAsync(byte[] buffer, int size, IPEndPoint remoteEp, CancellationToken cancellationToken)
+    protected override async Task ReceiveAsync(
+        byte[] buffer, int size, IPEndPoint remoteEp, CancellationToken cancellationToken)
     {
         uint senderId = (uint)IPAddress.NetworkToHostOrder(BitConverter.ToInt16(buffer, 0));
         uint receiverId = (uint)IPAddress.NetworkToHostOrder(BitConverter.ToInt16(buffer, 2));
 
-        if ((senderId == receiverId && senderId != 0) || remoteEp.Address.Equals(IPAddress.Loopback) || remoteEp.Address.Equals(IPAddress.Any) || remoteEp.Address.Equals(IPAddress.Broadcast) || remoteEp.Port == 0)
+        if ((senderId == receiverId && senderId != 0) || remoteEp.Address.Equals(IPAddress.Loopback)
+            || remoteEp.Address.Equals(IPAddress.Any) || remoteEp.Address.Equals(IPAddress.Broadcast) || remoteEp.Port == 0)
+        {
             return;
+        }
 
         await mappingsSemaphoreSlim.WaitAsync(cancellationToken).ConfigureAwait(false);
 
@@ -99,7 +107,10 @@ internal sealed class TunnelV2 : Tunnel
             if (senderId == 0 && receiverId == 0)
             {
                 if (size == 50 && !IsPingLimitReached(remoteEp.Address))
-                    _ = await Client!.Client.SendToAsync(buffer.AsMemory()[..12], SocketFlags.None, remoteEp, cancellationToken).ConfigureAwait(false);
+                {
+                    await Client!.Client.SendToAsync(buffer.AsMemory()[..12], SocketFlags.None, remoteEp, cancellationToken)
+                        .ConfigureAwait(false);
+                }
 
                 return;
             }
@@ -111,22 +122,31 @@ internal sealed class TunnelV2 : Tunnel
 
                 sender.SetLastReceiveTick();
 
-                if (Mappings.TryGetValue(receiverId, out TunnelClient? receiver) && !receiver.RemoteEp.Equals(sender.RemoteEp))
-                    _ = await Client!.Client.SendAsync(buffer.AsMemory()[..size], SocketFlags.None, cancellationToken).ConfigureAwait(false);
+                if (Mappings.TryGetValue(receiverId, out TunnelClient? receiver)
+                    && !receiver.RemoteEp.Equals(sender.RemoteEp))
+                {
+                    await Client!.Client.SendAsync(buffer.AsMemory()[..size], SocketFlags.None, cancellationToken)
+                        .ConfigureAwait(false);
+                }
             }
         }
         finally
         {
-            _ = mappingsSemaphoreSlim.Release();
+            mappingsSemaphoreSlim.Release();
         }
     }
 
-    private async Task<IResult> HandleMaintenanceRequest(HttpRequest request, CancellationToken cancellationToken, string? requestMaintenancePassword = null)
+    private async Task<IResult> HandleMaintenanceRequest(
+        HttpRequest request, CancellationToken cancellationToken, string? requestMaintenancePassword = null)
     {
-        if (!await IsNewConnectionAllowedAsync(request.HttpContext.Connection.RemoteIpAddress!, cancellationToken).ConfigureAwait(false))
+        if (!await IsNewConnectionAllowedAsync(request.HttpContext.Connection.RemoteIpAddress!, cancellationToken)
+            .ConfigureAwait(false))
+        {
             return Results.StatusCode((int)HttpStatusCode.TooManyRequests);
+        }
 
-        if (MaintenancePassword.Length > 0 && MaintenancePassword.Equals(requestMaintenancePassword, StringComparison.Ordinal))
+        if (MaintenancePassword.Length > 0
+            && MaintenancePassword.Equals(requestMaintenancePassword, StringComparison.Ordinal))
         {
             MaintenanceModeEnabled = true;
 
@@ -138,8 +158,11 @@ internal sealed class TunnelV2 : Tunnel
 
     private async Task<IResult> HandleStatusRequest(HttpRequest request, CancellationToken cancellationToken)
     {
-        if (!await IsNewConnectionAllowedAsync(request.HttpContext.Connection.RemoteIpAddress!, cancellationToken).ConfigureAwait(false))
+        if (!await IsNewConnectionAllowedAsync(request.HttpContext.Connection.RemoteIpAddress!, cancellationToken)
+            .ConfigureAwait(false))
+        {
             return Results.StatusCode((int)HttpStatusCode.TooManyRequests);
+        }
 
         string status;
 
@@ -147,17 +170,19 @@ internal sealed class TunnelV2 : Tunnel
 
         try
         {
-            status = FormattableString.Invariant($"{MaxClients - Mappings.Count} slots free.\n{Mappings.Count} slots in use.\n");
+            status = FormattableString.Invariant($"{MaxClients - Mappings.Count} slots free.") +
+                FormattableString.Invariant($"\n{Mappings.Count} slots in use.\n");
         }
         finally
         {
-            _ = mappingsSemaphoreSlim.Release();
+            mappingsSemaphoreSlim.Release();
         }
 
         return Results.Ok(status);
     }
 
-    private async Task<IResult> HandleRequestRequest(HttpRequest request, int? clients, CancellationToken cancellationToken)
+    private async Task<IResult> HandleRequestRequest(
+        HttpRequest request, int? clients, CancellationToken cancellationToken)
     {
         if (MaintenanceModeEnabled)
             return Results.StatusCode((int)HttpStatusCode.ServiceUnavailable);
@@ -183,21 +208,26 @@ internal sealed class TunnelV2 : Tunnel
                     {
                         clients--;
 
-                        var tunnelClient = new TunnelClient(new IPEndPoint(request.HttpContext.Connection.RemoteIpAddress!, request.HttpContext.Connection.RemotePort));
+                        var tunnelClient = new TunnelClient(new IPEndPoint(
+                            request.HttpContext.Connection.RemoteIpAddress!,
+                            request.HttpContext.Connection.RemotePort));
 
                         tunnelClient.SetLastReceiveTick();
 
                         Mappings.Add((uint)clientId, tunnelClient);
 
                         clientIds.Add(clientId);
-                        Logger.LogMessage(FormattableString.Invariant($"New V{Version} client from {tunnelClient.RemoteEp}, {Mappings.Count} clients from {Mappings.Values.Select(q => q.RemoteEp.Address).Distinct().Count()} IPs."));
+                        Logger.LogMessage(
+                            FormattableString.Invariant($"New V{Version} client from {tunnelClient.RemoteEp}, ") +
+                            FormattableString.Invariant($"{Mappings.Count} clients from ") +
+                            FormattableString.Invariant($"{Mappings.Values.Select(q => q.RemoteEp.Address).Distinct().Count()} IPs."));
                     }
                 }
             }
         }
         finally
         {
-            _ = mappingsSemaphoreSlim.Release();
+            mappingsSemaphoreSlim.Release();
         }
 
         if (clientIds.Count < 2)
@@ -228,7 +258,7 @@ internal sealed class TunnelV2 : Tunnel
         }
         finally
         {
-            _ = connectionCounterSemaphoreSlim.Release();
+            connectionCounterSemaphoreSlim.Release();
         }
     }
 }

@@ -20,7 +20,7 @@ try
         .UseWindowsService(o => o.ServiceName = "CnCNetServer")
         .ConfigureServices((__, services) =>
         {
-            _ = services
+            services
                 .AddHostedService<CnCNetBackgroundService>()
                 .AddSingleton(options)
                 .AddSingleton<TunnelV3>()

@@ -26,7 +26,7 @@ internal sealed class PeerToPeerUtil : IDisposable
 
     public Task StartAsync(int listenPort, CancellationToken cancellationToken)
     {
-        connectionCounterTimer.Elapsed += (_, _) => _ = ResetConnectionCounterAsync(cancellationToken);
+        connectionCounterTimer.Elapsed += (_, _) => ResetConnectionCounterAsync(cancellationToken);
         connectionCounterTimer.Enabled = true;
 
         return StartReceiverAsync(listenPort, cancellationToken);
@@ -37,6 +37,10 @@ internal sealed class PeerToPeerUtil : IDisposable
         connectionCounterSemaphoreSlim.Dispose();
         connectionCounterTimer.Dispose();
     }
+
+    private static bool IsInvalidRemoteIpEndPoint(IPEndPoint remoteEp)
+        => remoteEp.Address.Equals(IPAddress.Loopback) || remoteEp.Address.Equals(IPAddress.Any)
+        || remoteEp.Address.Equals(IPAddress.Broadcast) || remoteEp.Port == 0;
 
     private async Task ResetConnectionCounterAsync(CancellationToken cancellationToken)
     {
@@ -53,7 +57,7 @@ internal sealed class PeerToPeerUtil : IDisposable
             }
             finally
             {
-                _ = connectionCounterSemaphoreSlim.Release();
+                connectionCounterSemaphoreSlim.Release();
             }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -70,17 +74,22 @@ internal sealed class PeerToPeerUtil : IDisposable
 
         while (!cancellationToken.IsCancellationRequested)
         {
-            SocketReceiveFromResult socketReceiveFromResult = await client.Client.ReceiveFromAsync(buffer, SocketFlags.None, remoteEp, cancellationToken).ConfigureAwait(false);
+            SocketReceiveFromResult socketReceiveFromResult =
+                await client.Client.ReceiveFromAsync(buffer, SocketFlags.None, remoteEp, cancellationToken).ConfigureAwait(false);
 
             if (socketReceiveFromResult.ReceivedBytes == 48)
                 await ReceiveAsync(client, buffer, remoteEp, cancellationToken).ConfigureAwait(false);
         }
     }
 
-    private async Task ReceiveAsync(UdpClient client, byte[] buffer, IPEndPoint remoteEp, CancellationToken cancellationToken)
+    private async Task ReceiveAsync(
+        UdpClient client, byte[] buffer, IPEndPoint remoteEp, CancellationToken cancellationToken)
     {
-        if (remoteEp.Address.Equals(IPAddress.Loopback) || remoteEp.Address.Equals(IPAddress.Any) || remoteEp.Address.Equals(IPAddress.Broadcast) || remoteEp.Port == 0 || await IsConnectionLimitReachedAsync(remoteEp.Address, cancellationToken).ConfigureAwait(false))
+        if (IsInvalidRemoteIpEndPoint(remoteEp)
+            || await IsConnectionLimitReachedAsync(remoteEp.Address, cancellationToken).ConfigureAwait(false))
+        {
             return;
+        }
 
         if (IPAddress.NetworkToHostOrder(BitConverter.ToInt16(buffer, 0)) != StunId)
             return;
@@ -92,7 +101,7 @@ internal sealed class PeerToPeerUtil : IDisposable
         for (int i = 0; i < 6; i++)
             sendBuffer[i] ^= 0x20;
 
-        _ = await client.Client.SendToAsync(sendBuffer, SocketFlags.None, remoteEp, cancellationToken).ConfigureAwait(false);
+        await client.Client.SendToAsync(sendBuffer, SocketFlags.None, remoteEp, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<bool> IsConnectionLimitReachedAsync(IPAddress address, CancellationToken cancellationToken)
@@ -115,7 +124,7 @@ internal sealed class PeerToPeerUtil : IDisposable
         }
         finally
         {
-            _ = connectionCounterSemaphoreSlim.Release();
+            connectionCounterSemaphoreSlim.Release();
         }
     }
 }

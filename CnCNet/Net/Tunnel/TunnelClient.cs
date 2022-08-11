@@ -19,7 +19,5 @@ internal sealed class TunnelClient
     public bool TimedOut { get => TimeSpan.FromTicks(DateTime.UtcNow.Ticks - lastReceiveTick).TotalSeconds >= timeout; }
 
     public void SetLastReceiveTick()
-    {
-        lastReceiveTick = DateTime.UtcNow.Ticks;
-    }
+        => lastReceiveTick = DateTime.UtcNow.Ticks;
 }

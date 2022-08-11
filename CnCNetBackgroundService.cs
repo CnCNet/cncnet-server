@@ -12,7 +12,8 @@ internal sealed class CnCNetBackgroundService : BackgroundService
     private readonly PeerToPeerUtil peerToPeerUtil1;
     private readonly PeerToPeerUtil peerToPeerUtil2;
 
-    public CnCNetBackgroundService(ILogger<CnCNetBackgroundService> logger, Options options, TunnelV3 tunnelV3, TunnelV2 tunnelV2, PeerToPeerUtil peerToPeerUtil1, PeerToPeerUtil peerToPeerUtil2)
+    public CnCNetBackgroundService(ILogger<CnCNetBackgroundService> logger, Options options, TunnelV3 tunnelV3,
+        TunnelV2 tunnelV2, PeerToPeerUtil peerToPeerUtil1, PeerToPeerUtil peerToPeerUtil2)
     {
         this.logger = logger;
         this.options = options;
@@ -33,7 +34,6 @@ internal sealed class CnCNetBackgroundService : BackgroundService
         catch (Exception ex)
         {
             logger.LogExceptionDetails(ex);
-
             throw;
         }
 
@@ -51,7 +51,6 @@ internal sealed class CnCNetBackgroundService : BackgroundService
         catch (Exception ex)
         {
             logger.LogExceptionDetails(ex);
-
             throw;
         }
 
@@ -83,7 +82,6 @@ internal sealed class CnCNetBackgroundService : BackgroundService
         try
         {
             await whenAllTask.ConfigureAwait(false);
-
             return;
         }
         catch

@@ -16,9 +16,7 @@ internal static partial class LoggerExtensions
     }
 
     public static void LogExceptionDetails(this ILogger logger, Exception exception)
-    {
-        logger.LogException(exception.GetDetailedExceptionInfo());
-    }
+        => logger.LogException(exception.GetDetailedExceptionInfo());
 
     public static void ConfigureLogging(this ILoggingBuilder loggingBuilder, Options options)
     {
@@ -28,7 +26,7 @@ internal static partial class LoggerExtensions
         if (!Enum.TryParse(options.LogLevel, true, out LogLevel logLevel))
             throw new ConfigurationException(FormattableString.Invariant($"Invalid {nameof(Options.LogLevel)} value {options.LogLevel}."));
 
-        _ = loggingBuilder
+        loggingBuilder
             .SetMinimumLevel(systemLogLevel)
             .AddFilter("CnCNetServer", logLevel);
     }

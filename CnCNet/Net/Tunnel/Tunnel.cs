@@ -19,7 +19,8 @@ internal abstract class Tunnel : IAsyncDisposable
     private readonly int port;
     private readonly bool noMasterAnnounce;
 
-    protected Tunnel(int version, int port, int ipLimit, ILogger logger, Options options, IHttpClientFactory httpClientFactory)
+    protected Tunnel(
+        int version, int port, int ipLimit, ILogger logger, Options options, IHttpClientFactory httpClientFactory)
     {
         this.httpClientFactory = httpClientFactory;
         this.port = port;
@@ -66,7 +67,8 @@ internal abstract class Tunnel : IAsyncDisposable
 
         while (!cancellationToken.IsCancellationRequested)
         {
-            SocketReceiveFromResult socketReceiveFromResult = await Client.Client.ReceiveFromAsync(buffer, SocketFlags.None, remoteEp, cancellationToken).ConfigureAwait(false);
+            SocketReceiveFromResult socketReceiveFromResult =
+                await Client.Client.ReceiveFromAsync(buffer, SocketFlags.None, remoteEp, cancellationToken).ConfigureAwait(false);
 
             if (socketReceiveFromResult.ReceivedBytes >= 8)
                 await ReceiveAsync(buffer, socketReceiveFromResult.ReceivedBytes, remoteEp, cancellationToken).ConfigureAwait(false);
@@ -102,14 +104,19 @@ internal abstract class Tunnel : IAsyncDisposable
 
     private async Task SendMasterServerHeartbeatAsync(int clients, CancellationToken cancellationToken)
     {
-        string path = FormattableString.Invariant($"?version={Version}&name={Uri.EscapeDataString(name)}&port={port}&clients={clients}&maxclients={MaxClients}&masterpw={Uri.EscapeDataString(masterPassword)}&maintenance={(MaintenanceModeEnabled ? 1 : 0)}");
+        string path = FormattableString.Invariant($"?version={Version}&name={Uri.EscapeDataString(name)}&port={port}") +
+            FormattableString.Invariant($"&clients={clients}&maxclients={MaxClients}") +
+            FormattableString.Invariant($"&masterpw={Uri.EscapeDataString(masterPassword)}") +
+            FormattableString.Invariant($"&maintenance={(MaintenanceModeEnabled ? 1 : 0)}");
         HttpResponseMessage? httpResponseMessage = null;
 
         try
         {
-            httpResponseMessage = await httpClientFactory.CreateClient(nameof(Tunnel)).GetAsync(path, cancellationToken).ConfigureAwait(false);
+            httpResponseMessage = await httpClientFactory.CreateClient(nameof(Tunnel)).GetAsync(path, cancellationToken)
+                .ConfigureAwait(false);
 
-            string responseContent = await httpResponseMessage.EnsureSuccessStatusCode().Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            string responseContent = await httpResponseMessage.EnsureSuccessStatusCode().Content
+                .ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 
             if (!"OK".Equals(responseContent, StringComparison.OrdinalIgnoreCase))
                 throw new MasterServerException(responseContent);
@@ -128,7 +135,7 @@ internal abstract class Tunnel : IAsyncDisposable
 
     private Task StartHeartbeatAsync(CancellationToken cancellationToken)
     {
-        heartbeatTimer.Elapsed += (_, _) => _ = SendHeartbeatAsync(cancellationToken);
+        heartbeatTimer.Elapsed += (_, _) => SendHeartbeatAsync(cancellationToken);
         heartbeatTimer.Enabled = true;
 
         return SendHeartbeatAsync(cancellationToken);

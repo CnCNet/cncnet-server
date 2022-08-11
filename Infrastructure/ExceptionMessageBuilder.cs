@@ -11,9 +11,7 @@ using System.Threading.Tasks;
 internal static class ExceptionMessageBuilder
 {
     public static string GetDetailedExceptionInfo(this Exception ex)
-    {
-        return new StringBuilder().GetExceptionInfo(ex).ToString();
-    }
+        => new StringBuilder().GetExceptionInfo(ex).ToString();
 
     public static async Task<string> GetHttpResponseMessageInfoAsync(this HttpResponseMessage httpResponseMessage)
     {
@@ -35,13 +33,13 @@ internal static class ExceptionMessageBuilder
         {
             foreach (Exception innerException in aggregateException.InnerExceptions)
             {
-                _ = sb.AppendLine(FormattableString.Invariant($"{nameof(AggregateException)}.{nameof(AggregateException.InnerExceptions)}:"))
+                sb.AppendLine(FormattableString.Invariant($"{nameof(AggregateException)}.{nameof(AggregateException.InnerExceptions)}:"))
                     .GetExceptionInfo(innerException);
             }
         }
         else if (ex.InnerException is not null)
         {
-            _ = sb.AppendLine(FormattableString.Invariant($"{nameof(Exception)}.{nameof(Exception.InnerException)}:"))
+            sb.AppendLine(FormattableString.Invariant($"{nameof(Exception)}.{nameof(Exception.InnerException)}:"))
                 .GetExceptionInfo(ex.InnerException);
         }
 
@@ -49,13 +47,11 @@ internal static class ExceptionMessageBuilder
     }
 
     private static void GetExceptionDetails(this StringBuilder sb, Exception ex)
-    {
-        _ = sb.AppendLine(FormattableString.Invariant($"{nameof(Exception)}.{nameof(Exception.Source)}: {ex.Source}"))
+        => sb.AppendLine(FormattableString.Invariant($"{nameof(Exception)}.{nameof(Exception.Source)}: {ex.Source}"))
             .AppendLine(FormattableString.Invariant($"{nameof(Exception)}.{nameof(Exception.TargetSite)}: {ex.TargetSite}"))
             .GetSocketExceptionDetails(ex)
             .GetExternalExceptionDetails(ex)
             .AppendLine(FormattableString.Invariant($"{nameof(Exception)}.{nameof(Exception.StackTrace)}: {ex.StackTrace}"));
-    }
 
     private static StringBuilder GetExternalExceptionDetails(this StringBuilder sb, Exception ex)
     {
@@ -72,7 +68,7 @@ internal static class ExceptionMessageBuilder
     private static StringBuilder GetSocketExceptionDetails(this StringBuilder sb, Exception ex)
     {
         if (ex is SocketException socketException)
-            _ = sb.AppendLine(FormattableString.Invariant($"{nameof(SocketException)}.{nameof(SocketException.SocketErrorCode)}: {socketException.SocketErrorCode}"));
+            sb.AppendLine(FormattableString.Invariant($"{nameof(SocketException)}.{nameof(SocketException.SocketErrorCode)}: {socketException.SocketErrorCode}"));
 
         return sb;
     }
