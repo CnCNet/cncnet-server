@@ -23,9 +23,10 @@ internal sealed class TunnelV2 : Tunnel
             options.IpLimit < 1 ? 4 : options.IpLimit, logger, options, httpClientFactory)
     {
         WebApplicationBuilder builder = WebApplication.CreateBuilder();
-        builder.Logging.ConfigureLogging(options);
 
+        builder.Logging.ConfigureLogging(options);
         builder.WebHost.UseUrls(FormattableString.Invariant($"http://*:{options.TunnelV2Port}"));
+
         app = builder.Build();
     }
 
@@ -178,7 +179,7 @@ internal sealed class TunnelV2 : Tunnel
             mappingsSemaphoreSlim.Release();
         }
 
-        return Results.Ok(status);
+        return Results.Text(status);
     }
 
     private async Task<IResult> HandleRequestRequest(
@@ -235,7 +236,7 @@ internal sealed class TunnelV2 : Tunnel
 
         string msg = FormattableString.Invariant($"[{string.Join(",", clientIds)}]");
 
-        return Results.Ok(msg);
+        return Results.Text(msg);
     }
 
     private async Task<bool> IsNewConnectionAllowedAsync(IPAddress address, CancellationToken cancellationToken)
