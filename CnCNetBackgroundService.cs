@@ -25,7 +25,7 @@ internal sealed class CnCNetBackgroundService : BackgroundService
 
     public override async Task StartAsync(CancellationToken cancellationToken)
     {
-        logger.LogMessage("Server starting.");
+        logger.LogInfo("Server starting.");
 
         try
         {
@@ -37,12 +37,12 @@ internal sealed class CnCNetBackgroundService : BackgroundService
             throw;
         }
 
-        logger.LogMessage("Server started.");
+        logger.LogInfo("Server started.");
     }
 
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
-        logger.LogMessage("Server stopping.");
+        logger.LogInfo("Server stopping.");
 
         try
         {
@@ -54,7 +54,7 @@ internal sealed class CnCNetBackgroundService : BackgroundService
             throw;
         }
 
-        logger.LogMessage("Server stopped.");
+        logger.LogInfo("Server stopped.");
     }
 
     protected override Task ExecuteAsync(CancellationToken stoppingToken)

@@ -1,5 +1,6 @@
 ﻿namespace CnCNetServer;
 
+using System.Buffers;
 using System.Net;
 using System.Net.Sockets;
 using Microsoft.Extensions.Logging;
@@ -13,15 +14,19 @@ internal sealed class PeerToPeerUtil : IDisposable
 
     private readonly Dictionary<int, int> connectionCounter = new(MaxConnectionsGlobal);
     private readonly System.Timers.Timer connectionCounterTimer = new(CounterResetInterval);
-    private readonly byte[] sendBuffer = new byte[40];
+    private readonly IMemoryOwner<byte> memoryOwner = MemoryPool<byte>.Shared.Rent(40);
+    private readonly Memory<byte> sendBuffer;
     private readonly SemaphoreSlim connectionCounterSemaphoreSlim = new(1, 1);
     private readonly ILogger logger;
 
     public PeerToPeerUtil(ILogger<PeerToPeerUtil> logger)
     {
         this.logger = logger;
-        new Random().NextBytes(sendBuffer);
-        Array.Copy(BitConverter.GetBytes(IPAddress.HostToNetworkOrder((short)StunId)), 0, sendBuffer, 6, 2);
+
+        sendBuffer = memoryOwner.Memory[..40];
+
+        new Random().NextBytes(sendBuffer.Span);
+        BitConverter.GetBytes(IPAddress.HostToNetworkOrder((short)StunId)).AsSpan(..2).CopyTo(sendBuffer.Span[6..8]);
     }
 
     public Task StartAsync(int listenPort, CancellationToken cancellationToken)
@@ -36,6 +41,7 @@ internal sealed class PeerToPeerUtil : IDisposable
     {
         connectionCounterSemaphoreSlim.Dispose();
         connectionCounterTimer.Dispose();
+        memoryOwner.Dispose();
     }
 
     private static bool IsInvalidRemoteIpEndPoint(IPEndPoint remoteEp)
@@ -69,13 +75,13 @@ internal sealed class PeerToPeerUtil : IDisposable
     private async Task StartReceiverAsync(int listenPort, CancellationToken cancellationToken)
     {
         using var client = new UdpClient(listenPort);
-        byte[] buffer = new byte[64];
+        Memory<byte> buffer = new byte[64];
         var remoteEp = new IPEndPoint(IPAddress.Any, 0);
 
         while (!cancellationToken.IsCancellationRequested)
         {
-            SocketReceiveFromResult socketReceiveFromResult =
-                await client.Client.ReceiveFromAsync(buffer, SocketFlags.None, remoteEp, cancellationToken).ConfigureAwait(false);
+            SocketReceiveFromResult socketReceiveFromResult = await client.Client.ReceiveFromAsync(
+                buffer, SocketFlags.None, remoteEp, cancellationToken).ConfigureAwait(false);
 
             if (socketReceiveFromResult.ReceivedBytes == 48)
                 await ReceiveAsync(client, buffer, remoteEp, cancellationToken).ConfigureAwait(false);
@@ -83,7 +89,7 @@ internal sealed class PeerToPeerUtil : IDisposable
     }
 
     private async Task ReceiveAsync(
-        UdpClient client, byte[] buffer, IPEndPoint remoteEp, CancellationToken cancellationToken)
+        UdpClient client, ReadOnlyMemory<byte> buffer, IPEndPoint remoteEp, CancellationToken cancellationToken)
     {
         if (IsInvalidRemoteIpEndPoint(remoteEp)
             || await IsConnectionLimitReachedAsync(remoteEp.Address, cancellationToken).ConfigureAwait(false))
@@ -91,15 +97,15 @@ internal sealed class PeerToPeerUtil : IDisposable
             return;
         }
 
-        if (IPAddress.NetworkToHostOrder(BitConverter.ToInt16(buffer, 0)) != StunId)
+        if (IPAddress.NetworkToHostOrder(BitConverter.ToInt16(buffer.Span)) != StunId)
             return;
 
-        Array.Copy(remoteEp.Address.GetAddressBytes(), sendBuffer, 4);
-        Array.Copy(BitConverter.GetBytes(IPAddress.HostToNetworkOrder((short)remoteEp.Port)), 0, sendBuffer, 4, 2);
+        remoteEp.Address.GetAddressBytes().AsSpan(..4).CopyTo(sendBuffer.Span[..4]);
+        BitConverter.GetBytes(IPAddress.HostToNetworkOrder((short)remoteEp.Port)).AsSpan(..2).CopyTo(sendBuffer.Span[4..6]);
 
         // obfuscate
         for (int i = 0; i < 6; i++)
-            sendBuffer[i] ^= 0x20;
+            sendBuffer.Span[i] ^= 0x20;
 
         await client.Client.SendToAsync(sendBuffer, SocketFlags.None, remoteEp, cancellationToken).ConfigureAwait(false);
     }

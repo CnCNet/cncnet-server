@@ -34,9 +34,9 @@ internal sealed record Options
     [Option("nop2p", Default = false, HelpText = "Disable NAT traversal ports (8054, 3478 UDP)")]
     public bool NoPeerToPeer { get; set; }
 
-    [Option("loglevel", Default = "Information", HelpText = "CnCNet server messages")]
+    [Option("loglevel", Default = "Information", HelpText = "CnCNet server messages log level")]
     public string LogLevel { get; set; } = "Information";
 
-    [Option("systemloglevel", Default = "Warning", HelpText = "Low level system messages")]
+    [Option("systemloglevel", Default = "Warning", HelpText = "Low level system messages log level")]
     public string SystemLogLevel { get; set; } = "Warning";
 }

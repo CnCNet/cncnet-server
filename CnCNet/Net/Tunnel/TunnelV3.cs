@@ -51,15 +51,19 @@ internal sealed class TunnelV3 : Tunnel
                 {
                     expiredMappings.Add(mapping.Key);
 
-                    int ipHash = mapping.Value.RemoteEp.Address.GetHashCode();
+                    int ipHash = mapping.Value.RemoteEp!.Address.GetHashCode();
 
                     if (--ConnectionCounter[ipHash] <= 0)
                         ConnectionCounter.Remove(ipHash);
 
-                    Logger.LogMessage(
-                        FormattableString.Invariant($"Removed V{Version} client from {mapping.Value.RemoteEp}") +
-                        FormattableString.Invariant($", {Mappings.Count} clients from ") +
-                        FormattableString.Invariant($"{Mappings.Values.Select(q => q.RemoteEp.Address).Distinct().Count()} IPs."));
+                    if (Logger.IsEnabled(LogLevel.Information))
+                    {
+                        Logger.LogInfo(
+                            FormattableString.Invariant($"Removed V{Version} client from {mapping.Value.RemoteEp}") +
+                            FormattableString.Invariant($", {Mappings.Count} clients from ") +
+                            FormattableString.Invariant($"{Mappings.Values.Select(q => q.RemoteEp!.Address).Distinct()
+                                .Count()} IPs."));
+                    }
                 }
             }
 
@@ -79,15 +83,15 @@ internal sealed class TunnelV3 : Tunnel
     }
 
     protected override async Task ReceiveAsync(
-        byte[] buffer, int size, IPEndPoint remoteEp, CancellationToken cancellationToken)
+        ReadOnlyMemory<byte> buffer, IPEndPoint remoteEp, CancellationToken cancellationToken)
     {
-        uint senderId = BitConverter.ToUInt32(buffer, 0);
-        uint receiverId = BitConverter.ToUInt32(buffer, 4);
+        uint senderId = BitConverter.ToUInt32(buffer[..4].Span);
+        uint receiverId = BitConverter.ToUInt32(buffer[4..8].Span);
 
         if (senderId == 0)
         {
-            if (receiverId == uint.MaxValue && size >= 8 + 1 + 20) // 8=receiver+sender ids, 1=command, 20=sha1 pass
-                ExecuteCommand((TunnelCommand)buffer[8], buffer);
+            if (receiverId == uint.MaxValue && buffer.Length >= 8 + 1 + 20) // 8=receiver+sender ids, 1=command, 20=sha1 pass
+                ExecuteCommand((TunnelCommand)buffer.Span[8..9][0], buffer);
 
             if (receiverId != 0)
                 return;
@@ -106,9 +110,9 @@ internal sealed class TunnelV3 : Tunnel
         {
             if (senderId == 0 && receiverId == 0)
             {
-                if (size == 50 && !IsPingLimitReached(remoteEp.Address))
+                if (buffer.Length == 50 && !IsPingLimitReached(remoteEp.Address))
                 {
-                    await Client!.Client.SendToAsync(buffer.AsMemory()[..12], SocketFlags.None, remoteEp, cancellationToken)
+                    await Client!.Client.SendToAsync(buffer[..12], SocketFlags.None, remoteEp, cancellationToken)
                         .ConfigureAwait(false);
                 }
 
@@ -120,7 +124,7 @@ internal sealed class TunnelV3 : Tunnel
                 if (!remoteEp.Equals(sender.RemoteEp))
                 {
                     if (sender.TimedOut && !MaintenanceModeEnabled
-                        && IsNewConnectionAllowed(remoteEp.Address, sender.RemoteEp.Address))
+                        && IsNewConnectionAllowed(remoteEp.Address, sender.RemoteEp!.Address))
                     {
                         sender.RemoteEp = new IPEndPoint(remoteEp.Address, remoteEp.Port);
                     }
@@ -139,20 +143,21 @@ internal sealed class TunnelV3 : Tunnel
 
                 sender = new TunnelClient(new IPEndPoint(remoteEp.Address, remoteEp.Port));
 
-                sender.SetLastReceiveTick();
-
                 Mappings.Add(senderId, sender);
-                Logger.LogMessage(
-                    FormattableString.Invariant($"New V{Version} client from {remoteEp}, ") +
-                    FormattableString.Invariant($"{ConnectionCounter.Values.Sum()} clients from ") +
-                    FormattableString.Invariant($"{ConnectionCounter.Count} IPs."));
+
+                if (Logger.IsEnabled(LogLevel.Information))
+                {
+                    Logger.LogInfo(
+                        FormattableString.Invariant($"New V{Version} client from {remoteEp}, ") +
+                        FormattableString.Invariant($"{ConnectionCounter.Values.Sum()} clients from ") +
+                        FormattableString.Invariant($"{ConnectionCounter.Count} IPs."));
+                }
             }
 
             if (Mappings.TryGetValue(receiverId, out TunnelClient? receiver)
-                && !receiver.RemoteEp.Equals(sender.RemoteEp))
-            { 
-                await Client!.Client.SendAsync(buffer.AsMemory()[..size], SocketFlags.None, cancellationToken)
-                    .ConfigureAwait(false);
+                && !receiver.RemoteEp!.Equals(sender.RemoteEp))
+            {
+                await Client!.Client.SendAsync(buffer, SocketFlags.None, cancellationToken).ConfigureAwait(false);
             }
         }
         finally
@@ -185,18 +190,17 @@ internal sealed class TunnelV3 : Tunnel
         return true;
     }
 
-    private void ExecuteCommand(TunnelCommand command, byte[] data)
+    private void ExecuteCommand(TunnelCommand command, ReadOnlyMemory<byte> data)
     {
         if (TimeSpan.FromTicks(DateTime.UtcNow.Ticks - lastCommandTick).TotalSeconds < CommandRateLimit
             || maintenancePasswordSha1 is null || MaintenancePassword.Length == 0)
-        { 
+        {
             return;
         }
 
         lastCommandTick = DateTime.UtcNow.Ticks;
 
-        byte[] commandPasswordSha1 = new byte[20];
-        Array.Copy(data, 9, commandPasswordSha1, 0, 20);
+        ReadOnlySpan<byte> commandPasswordSha1 = data.Slice(9, 20).Span;
 
         if (!commandPasswordSha1.SequenceEqual(maintenancePasswordSha1))
             return;

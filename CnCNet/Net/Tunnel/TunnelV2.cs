@@ -60,10 +60,15 @@ internal sealed class TunnelV2 : Tunnel
             foreach (KeyValuePair<uint, TunnelClient> mapping in Mappings.Where(x => x.Value.TimedOut).ToList())
             {
                 Mappings.Remove(mapping.Key);
-                Logger.LogMessage(
-                    FormattableString.Invariant($"Removed V{Version} client from {mapping.Value.RemoteEp}") +
-                    FormattableString.Invariant($", {Mappings.Count} clients from ") +
-                    FormattableString.Invariant($"{Mappings.Values.Select(q => q.RemoteEp.Address).Distinct().Count()} IPs."));
+
+                if (Logger.IsEnabled(LogLevel.Information))
+                {
+                    Logger.LogInfo(
+                        FormattableString.Invariant($"Removed V{Version} client from {mapping.Value.RemoteEp}") +
+                        FormattableString.Invariant($", {Mappings.Count} clients from ") +
+                        FormattableString.Invariant($"{Mappings.Values.Select(q => q.RemoteEp?.Address)
+                            .Where(q => q is not null).Distinct().Count()} IPs."));
+                }
             }
 
             clients = Mappings.Count;
@@ -90,14 +95,27 @@ internal sealed class TunnelV2 : Tunnel
     }
 
     protected override async Task ReceiveAsync(
-        byte[] buffer, int size, IPEndPoint remoteEp, CancellationToken cancellationToken)
+        ReadOnlyMemory<byte> buffer, IPEndPoint remoteEp, CancellationToken cancellationToken)
     {
-        uint senderId = (uint)IPAddress.NetworkToHostOrder(BitConverter.ToInt16(buffer, 0));
-        uint receiverId = (uint)IPAddress.NetworkToHostOrder(BitConverter.ToInt16(buffer, 2));
+        uint senderId = (uint)IPAddress.NetworkToHostOrder(BitConverter.ToInt16(buffer[..2].Span));
+        uint receiverId = (uint)IPAddress.NetworkToHostOrder(BitConverter.ToInt16(buffer[2..4].Span));
+
+        if (Logger.IsEnabled(LogLevel.Debug))
+        {
+            Logger.LogDebug(
+                FormattableString.Invariant($"V{Version} client {remoteEp.Address} ({senderId} -> {receiverId}) received") +
+                FormattableString.Invariant($" {buffer.Length}: {Convert.ToHexString(buffer.Span)}"));
+        }
 
         if ((senderId == receiverId && senderId != 0) || remoteEp.Address.Equals(IPAddress.Loopback)
-            || remoteEp.Address.Equals(IPAddress.Any) || remoteEp.Address.Equals(IPAddress.Broadcast) || remoteEp.Port == 0)
+             || remoteEp.Address.Equals(IPAddress.Any) || remoteEp.Address.Equals(IPAddress.Broadcast) || remoteEp.Port == 0)
         {
+            if (Logger.IsEnabled(LogLevel.Debug))
+            {
+                Logger.LogDebug(
+                    FormattableString.Invariant($"V{Version} client {remoteEp.Address}:{remoteEp.Port} invalid endpoint."));
+            }
+
             return;
         }
 
@@ -107,10 +125,22 @@ internal sealed class TunnelV2 : Tunnel
         {
             if (senderId == 0 && receiverId == 0)
             {
-                if (size == 50 && !IsPingLimitReached(remoteEp.Address))
+                if (buffer.Length == 50 && !IsPingLimitReached(remoteEp.Address))
                 {
-                    await Client!.Client.SendToAsync(buffer.AsMemory()[..12], SocketFlags.None, remoteEp, cancellationToken)
+                    if (Logger.IsEnabled(LogLevel.Debug))
+                    {
+                        Logger.LogDebug(
+                            FormattableString.Invariant($"V{Version} client {remoteEp.Address} (new) sending:") +
+                            FormattableString.Invariant($" {Convert.ToHexString(buffer.Span[..12])}."));
+                    }
+
+                    await Client!.Client.SendToAsync(buffer[..12], SocketFlags.None, remoteEp, cancellationToken)
                         .ConfigureAwait(false);
+                }
+                else if (Logger.IsEnabled(LogLevel.Debug))
+                {
+                    Logger.LogDebug(FormattableString.Invariant($"V{Version} client {remoteEp.Address} (new):") +
+                        FormattableString.Invariant($" ping limit reached or size {buffer.Length} not 50."));
                 }
 
                 return;
@@ -118,22 +148,71 @@ internal sealed class TunnelV2 : Tunnel
 
             if (Mappings.TryGetValue(senderId, out TunnelClient? sender))
             {
-                if (!remoteEp.Equals(sender.RemoteEp))
+                if (sender.RemoteEp == null)
+                {
+                    sender.RemoteEp = new IPEndPoint(remoteEp.Address, remoteEp.Port);
+
+                    if (Logger.IsEnabled(LogLevel.Information))
+                    {
+                        Logger.LogInfo(
+                            FormattableString.Invariant($"New V{Version} client from {remoteEp}, ") +
+                            FormattableString.Invariant($"{Mappings.Count} clients from ") +
+                            FormattableString.Invariant($"{Mappings.Values.Select(q => q.RemoteEp?.Address)
+                                .Where(q => q is not null).Distinct().Count()} IPs."));
+                    }
+                }
+                else if (!remoteEp.Address.MapToIPv4().Equals(sender.RemoteEp.Address.MapToIPv4()))
+                {
+                    if (Logger.IsEnabled(LogLevel.Debug))
+                    {
+                        Logger.LogDebug(
+                            FormattableString.Invariant($"V{Version} client {remoteEp.Address.MapToIPv4()}:{remoteEp.Port}") +
+                            FormattableString.Invariant($" did not match {sender.RemoteEp.Address.MapToIPv4()}:{sender.RemoteEp.Port}."));
+                    }
+
                     return;
+                }
 
                 sender.SetLastReceiveTick();
 
-                if (Mappings.TryGetValue(receiverId, out TunnelClient? receiver)
-                    && !receiver.RemoteEp.Equals(sender.RemoteEp))
+                if (Mappings.TryGetValue(receiverId, out TunnelClient? receiver))
                 {
-                    await Client!.Client.SendAsync(buffer.AsMemory()[..size], SocketFlags.None, cancellationToken)
-                        .ConfigureAwait(false);
+                    if (Logger.IsEnabled(LogLevel.Debug))
+                        Logger.LogDebug(FormattableString.Invariant($"V{Version} client {remoteEp.Address} mapping found."));
+
+                    if (receiver.RemoteEp is not null
+                        && !receiver.RemoteEp.Address.MapToIPv4().Equals(sender.RemoteEp.Address.MapToIPv4()))
+                    {
+                        if (Logger.IsEnabled(LogLevel.Debug))
+                        {
+                            Logger.LogDebug(
+                                FormattableString.Invariant($"V{Version} client {remoteEp.Address} (existing) sending:") +
+                                FormattableString.Invariant($" {Convert.ToHexString(buffer.Span)}."));
+                        }
+
+                        await Client!.Client.SendToAsync(buffer, SocketFlags.None, receiver.RemoteEp, cancellationToken)
+                            .ConfigureAwait(false);
+                    }
+                }
+                else if (Logger.IsEnabled(LogLevel.Debug))
+                {
+                    Logger.LogDebug(
+                        FormattableString.Invariant($"V{Version} client {remoteEp.Address} mapping not found or receiver") +
+                        FormattableString.Invariant($" {receiver?.RemoteEp!.Address.MapToIPv4()} is sender") +
+                        FormattableString.Invariant($" {sender.RemoteEp.Address.MapToIPv4()}."));
                 }
             }
         }
         finally
         {
-            mappingsSemaphoreSlim.Release();
+            int locks = mappingsSemaphoreSlim.Release();
+
+            if (Logger.IsEnabled(LogLevel.Debug))
+            {
+                Logger.LogDebug(
+                    FormattableString.Invariant($"V{Version} client {remoteEp.Address} message handled,") +
+                    FormattableString.Invariant($" pending receive threads: {locks}."));
+            }
         }
     }
 
@@ -203,25 +282,28 @@ internal sealed class TunnelV2 : Tunnel
 
                 while (clients > 0)
                 {
-                    int clientId = rand.Next(0, int.MaxValue);
+                    int clientId = rand.Next(0, short.MaxValue);
 
                     if (!Mappings.ContainsKey((uint)clientId))
                     {
                         clients--;
 
-                        var tunnelClient = new TunnelClient(new IPEndPoint(
-                            request.HttpContext.Connection.RemoteIpAddress!,
-                            request.HttpContext.Connection.RemotePort));
-
-                        tunnelClient.SetLastReceiveTick();
-
-                        Mappings.Add((uint)clientId, tunnelClient);
+                        Mappings.Add((uint)clientId, new TunnelClient());
 
                         clientIds.Add(clientId);
-                        Logger.LogMessage(
-                            FormattableString.Invariant($"New V{Version} client from {tunnelClient.RemoteEp}, ") +
-                            FormattableString.Invariant($"{Mappings.Count} clients from ") +
-                            FormattableString.Invariant($"{Mappings.Values.Select(q => q.RemoteEp.Address).Distinct().Count()} IPs."));
+
+                        if (Logger.IsEnabled(LogLevel.Information))
+                        {
+                            var host = new IPEndPoint(
+                                request.HttpContext.Connection.RemoteIpAddress!,
+                                request.HttpContext.Connection.RemotePort);
+
+                            Logger.LogInfo(
+                                FormattableString.Invariant($"New V{Version} client from host {host}, ") +
+                                FormattableString.Invariant($"{Mappings.Count} clients from ") +
+                                FormattableString.Invariant($"{Mappings.Values.Select(q => q.RemoteEp?.Address)
+                                    .Where(q => q is not null).Distinct().Count()} IPs."));
+                        }
                     }
                 }
             }

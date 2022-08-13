@@ -1,5 +1,6 @@
 ﻿namespace CnCNetServer;
 
+using System.Buffers;
 using System.Net;
 using System.Net.Sockets;
 using Microsoft.Extensions.Logging;
@@ -62,7 +63,8 @@ internal abstract class Tunnel : IAsyncDisposable
 
         await StartHeartbeatAsync(cancellationToken).ConfigureAwait(false);
 
-        byte[] buffer = new byte[1024];
+        using IMemoryOwner<byte> memoryOwner = MemoryPool<byte>.Shared.Rent(1024);
+        Memory<byte> buffer = memoryOwner.Memory[..1024];
         var remoteEp = new IPEndPoint(IPAddress.Any, 0);
 
         while (!cancellationToken.IsCancellationRequested)
@@ -71,7 +73,7 @@ internal abstract class Tunnel : IAsyncDisposable
                 await Client.Client.ReceiveFromAsync(buffer, SocketFlags.None, remoteEp, cancellationToken).ConfigureAwait(false);
 
             if (socketReceiveFromResult.ReceivedBytes >= 8)
-                await ReceiveAsync(buffer, socketReceiveFromResult.ReceivedBytes, remoteEp, cancellationToken).ConfigureAwait(false);
+                await ReceiveAsync(buffer[..socketReceiveFromResult.ReceivedBytes], (IPEndPoint)socketReceiveFromResult.RemoteEndPoint, cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -85,7 +87,8 @@ internal abstract class Tunnel : IAsyncDisposable
 
     protected abstract Task<int> CleanupConnectionsAsync(CancellationToken cancellationToken);
 
-    protected abstract Task ReceiveAsync(byte[] buffer, int size, IPEndPoint remoteEp, CancellationToken cancellationToken);
+    protected abstract Task ReceiveAsync(
+        ReadOnlyMemory<byte> buffer, IPEndPoint remoteEp, CancellationToken cancellationToken);
 
     protected bool IsPingLimitReached(IPAddress address)
     {
@@ -121,7 +124,7 @@ internal abstract class Tunnel : IAsyncDisposable
             if (!"OK".Equals(responseContent, StringComparison.OrdinalIgnoreCase))
                 throw new MasterServerException(responseContent);
 
-            Logger.LogMessage(FormattableString.Invariant($"{DateTime.UtcNow} Tunnel V{Version} Heartbeat sent."));
+            Logger.LogInfo(FormattableString.Invariant($"{DateTime.UtcNow} Tunnel V{Version} Heartbeat sent."));
         }
         catch (HttpRequestException ex)
         {
