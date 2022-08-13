@@ -11,7 +11,6 @@ internal sealed class TunnelV3 : Tunnel
 {
     private readonly SemaphoreSlim clientsSemaphoreSlim = new(1, 1);
     private readonly byte[]? maintenancePasswordSha1;
-    private readonly List<uint> expiredMappings = new(25);
     private long lastCommandTick;
 
     public TunnelV3(ILogger<TunnelV3> logger, Options options, IHttpClientFactory httpClientFactory)
@@ -50,18 +49,16 @@ internal sealed class TunnelV3 : Tunnel
 
         try
         {
-            expiredMappings.Clear();
-
             foreach (KeyValuePair<uint, TunnelClient> mapping in Mappings)
             {
                 if (mapping.Value.TimedOut)
                 {
-                    expiredMappings.Add(mapping.Key);
-
                     int ipHash = mapping.Value.RemoteEp!.Address.GetHashCode();
 
                     if (--ConnectionCounter[ipHash] <= 0)
                         ConnectionCounter.Remove(ipHash);
+
+                    Mappings.Remove(mapping.Key);
 
                     if (Logger.IsEnabled(LogLevel.Information))
                     {
@@ -73,9 +70,6 @@ internal sealed class TunnelV3 : Tunnel
                     }
                 }
             }
-
-            foreach (uint mapping in expiredMappings)
-                Mappings.Remove(mapping);
 
             clients = Mappings.Count;
 
