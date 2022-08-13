@@ -78,6 +78,9 @@ internal sealed class PeerToPeerUtil : IDisposable
         Memory<byte> buffer = new byte[64];
         var remoteEp = new IPEndPoint(IPAddress.Any, 0);
 
+        logger.LogInfo(
+            FormattableString.Invariant($"{DateTimeOffset.Now} PeerToPeer UDP server started on port {listenPort}."));
+
         while (!cancellationToken.IsCancellationRequested)
         {
             SocketReceiveFromResult socketReceiveFromResult = await client.Client.ReceiveFromAsync(

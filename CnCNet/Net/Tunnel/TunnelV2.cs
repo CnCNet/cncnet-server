@@ -13,14 +13,15 @@ using Microsoft.Extensions.Logging;
 internal sealed class TunnelV2 : Tunnel
 {
     private const int MaxRequestsGlobal = 1000;
+    private const int MinGameClients = 2;
+    private const int MaxGameClients = 8;
 
     private readonly SemaphoreSlim mappingsSemaphoreSlim = new(1, 1);
     private readonly SemaphoreSlim connectionCounterSemaphoreSlim = new(1, 1);
     private readonly WebApplication app;
 
     public TunnelV2(ILogger<TunnelV2> logger, Options options, IHttpClientFactory httpClientFactory)
-        : base(2, options.TunnelV2Port <= 1024 ? 50000 : options.TunnelV2Port,
-            options.IpLimit < 1 ? 4 : options.IpLimit, logger, options, httpClientFactory)
+        : base(logger, options, httpClientFactory)
     {
         WebApplicationBuilder builder = WebApplication.CreateBuilder();
 
@@ -30,12 +31,23 @@ internal sealed class TunnelV2 : Tunnel
         app = builder.Build();
     }
 
+    protected override int Version => 2;
+
+    protected override int DefaultPort => 50000;
+
+    protected override int DefaultIpLimit => 4;
+
+    protected override int Port => Options.TunnelV2Port;
+
     public Task StartHttpServerAsync()
     {
         app.MapGet("/maintenance", HandleMaintenanceRequest);
         app.MapGet("/maintenance/{requestMaintenancePassword}", HandleMaintenanceRequest);
         app.MapGet("/status", HandleStatusRequest);
         app.MapGet("/request", HandleRequestRequest);
+
+        Logger.LogInfo(FormattableString.Invariant(
+            $"{DateTimeOffset.Now} V{Version} Tunnel HTTP server started on port {Options.TunnelV2Port}."));
 
         return app.RunAsync();
     }
@@ -64,8 +76,8 @@ internal sealed class TunnelV2 : Tunnel
                 if (Logger.IsEnabled(LogLevel.Information))
                 {
                     Logger.LogInfo(
-                        FormattableString.Invariant($"Removed V{Version} client from {mapping.Value.RemoteEp}") +
-                        FormattableString.Invariant($", {Mappings.Count} clients from ") +
+                        FormattableString.Invariant($"{DateTimeOffset.Now} Removed V{Version} client from ") +
+                        FormattableString.Invariant($"{mapping.Value.RemoteEp}, {Mappings.Count} clients from ") +
                         FormattableString.Invariant($"{Mappings.Values.Select(q => q.RemoteEp?.Address)
                             .Where(q => q is not null).Distinct().Count()} IPs."));
                 }
@@ -155,7 +167,7 @@ internal sealed class TunnelV2 : Tunnel
                     if (Logger.IsEnabled(LogLevel.Information))
                     {
                         Logger.LogInfo(
-                            FormattableString.Invariant($"New V{Version} client from {remoteEp}, ") +
+                            FormattableString.Invariant($"{DateTimeOffset.Now} New V{Version} client from {remoteEp}, ") +
                             FormattableString.Invariant($"{Mappings.Count} clients from ") +
                             FormattableString.Invariant($"{Mappings.Values.Select(q => q.RemoteEp?.Address)
                                 .Where(q => q is not null).Distinct().Count()} IPs."));
@@ -225,13 +237,19 @@ internal sealed class TunnelV2 : Tunnel
             return Results.StatusCode((int)HttpStatusCode.TooManyRequests);
         }
 
-        if (MaintenancePassword.Length > 0
-            && MaintenancePassword.Equals(requestMaintenancePassword, StringComparison.Ordinal))
+        if (Options.MaintenancePassword.Any()
+            && Options.MaintenancePassword.Equals(requestMaintenancePassword, StringComparison.Ordinal))
         {
             MaintenanceModeEnabled = true;
 
+            Logger.LogWarning(FormattableString.Invariant(
+                $"{DateTimeOffset.Now} Maintenance mode enabled by {request.HttpContext.Connection.RemoteIpAddress}."));
+
             return Results.Ok();
         }
+
+        Logger.LogWarning(FormattableString.Invariant(
+            $"{DateTimeOffset.Now} Invalid Maintenance mode request by {request.HttpContext.Connection.RemoteIpAddress}."));
 
         return Results.Unauthorized();
     }
@@ -267,7 +285,7 @@ internal sealed class TunnelV2 : Tunnel
         if (MaintenanceModeEnabled)
             return Results.StatusCode((int)HttpStatusCode.ServiceUnavailable);
 
-        if (clients is null or < 2 or > 8)
+        if (clients is null or < MinGameClients or > MaxGameClients)
             return Results.StatusCode((int)HttpStatusCode.BadRequest);
 
         var clientIds = new List<int>(clients.Value);
@@ -299,7 +317,7 @@ internal sealed class TunnelV2 : Tunnel
                                 request.HttpContext.Connection.RemotePort);
 
                             Logger.LogInfo(
-                                FormattableString.Invariant($"New V{Version} client from host {host}, ") +
+                                FormattableString.Invariant($"{DateTimeOffset.Now} New V{Version} client from host {host}, ") +
                                 FormattableString.Invariant($"{Mappings.Count} clients from ") +
                                 FormattableString.Invariant($"{Mappings.Values.Select(q => q.RemoteEp?.Address)
                                     .Where(q => q is not null).Distinct().Count()} IPs."));
@@ -332,7 +350,7 @@ internal sealed class TunnelV2 : Tunnel
 
             int ipHash = address.GetHashCode();
 
-            if (ConnectionCounter.TryGetValue(ipHash, out int count) && count >= IpLimit)
+            if (ConnectionCounter.TryGetValue(ipHash, out int count) && count >= GetIpLimit())
                 return false;
 
             ConnectionCounter[ipHash] = ++count;

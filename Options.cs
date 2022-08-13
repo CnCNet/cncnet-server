@@ -4,7 +4,7 @@ using CommandLine;
 
 internal sealed record Options
 {
-    [Option("port", Default = 50001, HelpText = "Port used for the tunnel server")]
+    [Option("port", Default = 50001, HelpText = "Port used for the V3 tunnel server")]
     public int TunnelPort { get; set; } = 50001;
 
     [Option("portv2", Default = 50000, HelpText = "Port used for the V2 tunnel server")]
@@ -33,6 +33,12 @@ internal sealed record Options
 
     [Option("nop2p", Default = false, HelpText = "Disable NAT traversal ports (8054, 3478 UDP)")]
     public bool NoPeerToPeer { get; set; }
+
+    [Option("tunnelv3", Default = true, HelpText = "Start a V3 tunnel server")]
+    public bool TunnelV3Enabled { get; set; }
+
+    [Option("tunnelv2", Default = true, HelpText = "Start a V2 tunnel server")]
+    public bool TunnelV2Enabled { get; set; }
 
     [Option("loglevel", Default = "Information", HelpText = "CnCNet server messages log level")]
     public string LogLevel { get; set; } = "Information";

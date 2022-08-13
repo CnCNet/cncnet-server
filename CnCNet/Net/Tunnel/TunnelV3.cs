@@ -15,14 +15,21 @@ internal sealed class TunnelV3 : Tunnel
     private long lastCommandTick;
 
     public TunnelV3(ILogger<TunnelV3> logger, Options options, IHttpClientFactory httpClientFactory)
-        : base(3, options.TunnelPort <= 1024 ? 50001 : options.TunnelPort,
-            options.IpLimit < 1 ? 8 : options.IpLimit, logger, options, httpClientFactory)
+        : base(logger, options, httpClientFactory)
     {
-        if (MaintenancePassword.Length > 0)
-            maintenancePasswordSha1 = SHA1.HashData(Encoding.UTF8.GetBytes(MaintenancePassword));
+        if (Options.MaintenancePassword.Any())
+            maintenancePasswordSha1 = SHA1.HashData(Encoding.UTF8.GetBytes(Options.MaintenancePassword));
 
         lastCommandTick = DateTime.UtcNow.Ticks;
     }
+
+    protected override int Version => 3;
+
+    protected override int DefaultPort => 50001;
+
+    protected override int DefaultIpLimit => 8;
+
+    protected override int Port => Options.TunnelPort;
 
     private enum TunnelCommand : byte
     {
@@ -59,8 +66,8 @@ internal sealed class TunnelV3 : Tunnel
                     if (Logger.IsEnabled(LogLevel.Information))
                     {
                         Logger.LogInfo(
-                            FormattableString.Invariant($"Removed V{Version} client from {mapping.Value.RemoteEp}") +
-                            FormattableString.Invariant($", {Mappings.Count} clients from ") +
+                            FormattableString.Invariant($"{DateTimeOffset.Now} Removed V{Version} client from ") +
+                            FormattableString.Invariant($"{mapping.Value.RemoteEp}, {Mappings.Count} clients from ") +
                             FormattableString.Invariant($"{Mappings.Values.Select(q => q.RemoteEp!.Address).Distinct()
                                 .Count()} IPs."));
                     }
@@ -91,7 +98,7 @@ internal sealed class TunnelV3 : Tunnel
         if (senderId == 0)
         {
             if (receiverId == uint.MaxValue && buffer.Length >= 8 + 1 + 20) // 8=receiver+sender ids, 1=command, 20=sha1 pass
-                ExecuteCommand((TunnelCommand)buffer.Span[8..9][0], buffer);
+                ExecuteCommand((TunnelCommand)buffer.Span[8..9][0], buffer, remoteEp);
 
             if (receiverId != 0)
                 return;
@@ -148,7 +155,7 @@ internal sealed class TunnelV3 : Tunnel
                 if (Logger.IsEnabled(LogLevel.Information))
                 {
                     Logger.LogInfo(
-                        FormattableString.Invariant($"New V{Version} client from {remoteEp}, ") +
+                        FormattableString.Invariant($"{DateTimeOffset.Now} New V{Version} client from {remoteEp}, ") +
                         FormattableString.Invariant($"{ConnectionCounter.Values.Sum()} clients from ") +
                         FormattableString.Invariant($"{ConnectionCounter.Count} IPs."));
                 }
@@ -170,7 +177,7 @@ internal sealed class TunnelV3 : Tunnel
     {
         int ipHash = newIp.GetHashCode();
 
-        if (ConnectionCounter.TryGetValue(ipHash, out int count) && count >= IpLimit)
+        if (ConnectionCounter.TryGetValue(ipHash, out int count) && count >= GetIpLimit())
             return false;
 
         if (oldIp == null)
@@ -190,10 +197,10 @@ internal sealed class TunnelV3 : Tunnel
         return true;
     }
 
-    private void ExecuteCommand(TunnelCommand command, ReadOnlyMemory<byte> data)
+    private void ExecuteCommand(TunnelCommand command, ReadOnlyMemory<byte> data, IPEndPoint remoteEp)
     {
         if (TimeSpan.FromTicks(DateTime.UtcNow.Ticks - lastCommandTick).TotalSeconds < CommandRateLimit
-            || maintenancePasswordSha1 is null || MaintenancePassword.Length == 0)
+            || maintenancePasswordSha1 is null || !Options.MaintenancePassword.Any())
         {
             return;
         }
@@ -203,12 +210,20 @@ internal sealed class TunnelV3 : Tunnel
         ReadOnlySpan<byte> commandPasswordSha1 = data.Slice(9, 20).Span;
 
         if (!commandPasswordSha1.SequenceEqual(maintenancePasswordSha1))
+        {
+            Logger.LogWarning(FormattableString.Invariant(
+                $"{DateTimeOffset.Now} Invalid Maintenance mode request by {remoteEp}."));
+
             return;
+        }
 
         MaintenanceModeEnabled = command switch
         {
             TunnelCommand.MaintenanceMode => !MaintenanceModeEnabled,
             _ => MaintenanceModeEnabled
         };
+
+        Logger.LogWarning(FormattableString.Invariant(
+            $"{DateTimeOffset.Now} Maintenance mode set to {MaintenanceModeEnabled} by {remoteEp}."));
     }
 }

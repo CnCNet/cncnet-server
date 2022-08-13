@@ -28,14 +28,17 @@ internal static partial class LoggerExtensions
 
         loggingBuilder
             .SetMinimumLevel(systemLogLevel)
-            .AddFilter("CnCNetServer", logLevel);
+            .AddFilter(nameof(CnCNetServer), logLevel);
     }
 
-    [LoggerMessage(EventId = 2, Level = LogLevel.Debug, Message = "{message}")]
+    [LoggerMessage(EventId = 3, Level = LogLevel.Debug, Message = "{message}")]
     public static partial void LogDebug(this ILogger logger, string message);
 
-    [LoggerMessage(EventId = 1, Level = LogLevel.Information, Message = "{message}")]
+    [LoggerMessage(EventId = 2, Level = LogLevel.Information, Message = "{message}")]
     public static partial void LogInfo(this ILogger logger, string message);
+
+    [LoggerMessage(EventId = 1, Level = LogLevel.Warning, Message = "{message}")]
+    public static partial void LogWarning(this ILogger logger, string message);
 
     [LoggerMessage(EventId = 0, Level = LogLevel.Error, Message = "{message}")]
     private static partial void LogException(this ILogger logger, string message);

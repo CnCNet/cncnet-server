@@ -25,7 +25,7 @@ internal sealed class CnCNetBackgroundService : BackgroundService
 
     public override async Task StartAsync(CancellationToken cancellationToken)
     {
-        logger.LogInfo("Server starting.");
+        logger.LogInfo(FormattableString.Invariant($"{DateTimeOffset.Now} Server starting."));
 
         try
         {
@@ -37,12 +37,12 @@ internal sealed class CnCNetBackgroundService : BackgroundService
             throw;
         }
 
-        logger.LogInfo("Server started.");
+        logger.LogInfo(FormattableString.Invariant($"{DateTimeOffset.Now} Server started."));
     }
 
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
-        logger.LogInfo("Server stopping.");
+        logger.LogInfo(FormattableString.Invariant($"{DateTimeOffset.Now} Server stopping."));
 
         try
         {
@@ -54,17 +54,24 @@ internal sealed class CnCNetBackgroundService : BackgroundService
             throw;
         }
 
-        logger.LogInfo("Server stopped.");
+        logger.LogInfo(FormattableString.Invariant($"{DateTimeOffset.Now} Server stopped."));
     }
 
     protected override Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var tasks = new List<Task>
-            {
-                CreateLongRunningTask(() => tunnelV3.StartAsync(stoppingToken), stoppingToken),
-                CreateLongRunningTask(() => tunnelV2.StartAsync(stoppingToken), stoppingToken),
-                CreateLongRunningTask(tunnelV2.StartHttpServerAsync, stoppingToken),
-            };
+        if (!options.TunnelV3Enabled && !options.TunnelV2Enabled && options.NoPeerToPeer)
+            throw new ConfigurationException("No tunnel or peer to peer enabled.");
+
+        var tasks = new List<Task>();
+
+        if (options.TunnelV3Enabled)
+            tasks.Add(CreateLongRunningTask(() => tunnelV3.StartAsync(stoppingToken), stoppingToken));
+
+        if (options.TunnelV2Enabled)
+        {
+            tasks.Add(CreateLongRunningTask(() => tunnelV2.StartAsync(stoppingToken), stoppingToken));
+            tasks.Add(CreateLongRunningTask(tunnelV2.StartHttpServerAsync, stoppingToken));
+        }
 
         if (!options.NoPeerToPeer)
         {
