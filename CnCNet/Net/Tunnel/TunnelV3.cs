@@ -211,8 +211,11 @@ internal sealed class TunnelV3 : Tunnel
 
         if (!commandPasswordSha1.SequenceEqual(maintenancePasswordSha1))
         {
-            Logger.LogWarning(FormattableString.Invariant(
-                $"{DateTimeOffset.Now} Invalid Maintenance mode request by {remoteEp}."));
+            if (Logger.IsEnabled(LogLevel.Warning))
+            {
+                Logger.LogWarning(FormattableString.Invariant(
+                    $"{DateTimeOffset.Now} Invalid Maintenance mode request by {remoteEp}."));
+            }
 
             return;
         }
@@ -223,7 +226,10 @@ internal sealed class TunnelV3 : Tunnel
             _ => MaintenanceModeEnabled
         };
 
-        Logger.LogWarning(FormattableString.Invariant(
-            $"{DateTimeOffset.Now} Maintenance mode set to {MaintenanceModeEnabled} by {remoteEp}."));
+        if (Logger.IsEnabled(LogLevel.Warning))
+        {
+            Logger.LogWarning(FormattableString.Invariant(
+                $"{DateTimeOffset.Now} Maintenance mode set to {MaintenanceModeEnabled} by {remoteEp}."));
+        }
     }
 }

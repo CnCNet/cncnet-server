@@ -46,8 +46,11 @@ internal sealed class TunnelV2 : Tunnel
         app.MapGet("/status", HandleStatusRequest);
         app.MapGet("/request", HandleRequestRequest);
 
-        Logger.LogInfo(FormattableString.Invariant(
-            $"{DateTimeOffset.Now} V{Version} Tunnel HTTP server started on port {Options.TunnelV2Port}."));
+        if (Logger.IsEnabled(LogLevel.Information))
+        {
+            Logger.LogInfo(FormattableString.Invariant(
+                $"{DateTimeOffset.Now} V{Version} Tunnel HTTP server started on port {Options.TunnelV2Port}."));
+        }
 
         return app.RunAsync();
     }
@@ -77,9 +80,9 @@ internal sealed class TunnelV2 : Tunnel
                 {
                     Logger.LogInfo(
                         FormattableString.Invariant($"{DateTimeOffset.Now} Removed V{Version} client from ") +
-                        FormattableString.Invariant($"{mapping.Value.RemoteEp}, {Mappings.Count} clients from ") +
-                        FormattableString.Invariant($"{Mappings.Values.Select(q => q.RemoteEp?.Address)
-                            .Where(q => q is not null).Distinct().Count()} IPs."));
+                        FormattableString.Invariant($"{mapping.Value.RemoteEp?.ToString() ?? "(not connected)"}, ") +
+                        FormattableString.Invariant($"{Mappings.Count} clients from {Mappings.Values
+                            .Select(q => q.RemoteEp?.Address).Where(q => q is not null).Distinct().Count()} IPs."));
                 }
             }
 
@@ -242,14 +245,20 @@ internal sealed class TunnelV2 : Tunnel
         {
             MaintenanceModeEnabled = true;
 
-            Logger.LogWarning(FormattableString.Invariant(
-                $"{DateTimeOffset.Now} Maintenance mode enabled by {request.HttpContext.Connection.RemoteIpAddress}."));
+            if (Logger.IsEnabled(LogLevel.Warning))
+            {
+                Logger.LogWarning(FormattableString.Invariant(
+                    $"{DateTimeOffset.Now} Maintenance mode enabled by {request.HttpContext.Connection.RemoteIpAddress}."));
+            }
 
             return Results.Ok();
         }
 
-        Logger.LogWarning(FormattableString.Invariant(
-            $"{DateTimeOffset.Now} Invalid Maintenance mode request by {request.HttpContext.Connection.RemoteIpAddress}."));
+        if (Logger.IsEnabled(LogLevel.Warning))
+        {
+            Logger.LogWarning(FormattableString.Invariant(
+                $"{DateTimeOffset.Now} Invalid Maintenance mode request by {request.HttpContext.Connection.RemoteIpAddress}."));
+        }
 
         return Results.Unauthorized();
     }
@@ -296,6 +305,16 @@ internal sealed class TunnelV2 : Tunnel
         {
             if (Mappings.Count + clients <= MaxClients)
             {
+                if (Logger.IsEnabled(LogLevel.Information))
+                {
+                    var host = new IPEndPoint(
+                        request.HttpContext.Connection.RemoteIpAddress!,
+                        request.HttpContext.Connection.RemotePort);
+
+                    Logger.LogInfo(FormattableString.Invariant(
+                        $"{DateTimeOffset.Now} New V{Version} lobby from host {host} with {clients} clients."));
+                }
+
                 var rand = new Random();
 
                 while (clients > 0)
@@ -309,19 +328,6 @@ internal sealed class TunnelV2 : Tunnel
                         Mappings.Add((uint)clientId, new TunnelClient());
 
                         clientIds.Add(clientId);
-
-                        if (Logger.IsEnabled(LogLevel.Information))
-                        {
-                            var host = new IPEndPoint(
-                                request.HttpContext.Connection.RemoteIpAddress!,
-                                request.HttpContext.Connection.RemotePort);
-
-                            Logger.LogInfo(
-                                FormattableString.Invariant($"{DateTimeOffset.Now} New V{Version} client from host {host}, ") +
-                                FormattableString.Invariant($"{Mappings.Count} clients from ") +
-                                FormattableString.Invariant($"{Mappings.Values.Select(q => q.RemoteEp?.Address)
-                                    .Where(q => q is not null).Distinct().Count()} IPs."));
-                        }
                     }
                 }
             }

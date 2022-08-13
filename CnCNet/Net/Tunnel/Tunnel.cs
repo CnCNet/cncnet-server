@@ -69,8 +69,11 @@ internal abstract class Tunnel : IAsyncDisposable
         Memory<byte> buffer = memoryOwner.Memory[..1024];
         var remoteEp = new IPEndPoint(IPAddress.Any, 0);
 
-        Logger.LogInfo(
-            FormattableString.Invariant($"{DateTimeOffset.Now} V{Version} Tunnel UDP server started on port {GetPort()}."));
+        if (Logger.IsEnabled(LogLevel.Information))
+        {
+            Logger.LogInfo(FormattableString.Invariant(
+                $"{DateTimeOffset.Now} V{Version} Tunnel UDP server started on port {GetPort()}."));
+        }
 
         while (!cancellationToken.IsCancellationRequested)
         {
@@ -138,7 +141,8 @@ internal abstract class Tunnel : IAsyncDisposable
             if (!"OK".Equals(responseContent, StringComparison.OrdinalIgnoreCase))
                 throw new MasterServerException(responseContent);
 
-            Logger.LogInfo(FormattableString.Invariant($"{DateTimeOffset.Now} V{Version} Tunnel Heartbeat sent."));
+            if (Logger.IsEnabled(LogLevel.Information))
+                Logger.LogInfo(FormattableString.Invariant($"{DateTimeOffset.Now} V{Version} Tunnel Heartbeat sent."));
         }
         catch (HttpRequestException ex)
         {
