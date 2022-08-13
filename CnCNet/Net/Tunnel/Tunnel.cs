@@ -138,7 +138,7 @@ internal abstract class Tunnel : IAsyncDisposable
             if (!"OK".Equals(responseContent, StringComparison.OrdinalIgnoreCase))
                 throw new MasterServerException(responseContent);
 
-            Logger.LogInfo(FormattableString.Invariant($"{DateTimeOffset.Now} Tunnel V{Version} Heartbeat sent."));
+            Logger.LogInfo(FormattableString.Invariant($"{DateTimeOffset.Now} V{Version} Tunnel Heartbeat sent."));
         }
         catch (HttpRequestException ex)
         {
