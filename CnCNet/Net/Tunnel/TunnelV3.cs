@@ -16,8 +16,8 @@ internal sealed class TunnelV3 : Tunnel
     public TunnelV3(ILogger<TunnelV3> logger, Options options, IHttpClientFactory httpClientFactory)
         : base(logger, options, httpClientFactory)
     {
-        if (Options.MaintenancePassword.Any())
-            maintenancePasswordSha1 = SHA1.HashData(Encoding.UTF8.GetBytes(Options.MaintenancePassword));
+        if (Options.MaintenancePassword!.Any())
+            maintenancePasswordSha1 = SHA1.HashData(Encoding.UTF8.GetBytes(Options.MaintenancePassword!));
 
         lastCommandTick = DateTime.UtcNow.Ticks;
     }
@@ -41,46 +41,12 @@ internal sealed class TunnelV3 : Tunnel
         clientsSemaphoreSlim.Dispose();
     }
 
-    protected override async Task<int> CleanupConnectionsAsync(CancellationToken cancellationToken)
+    protected override void CleanupConnection(TunnelClient tunnelClient)
     {
-        int clients;
+        int ipHash = tunnelClient.RemoteEp!.Address.GetHashCode();
 
-        await clientsSemaphoreSlim.WaitAsync(cancellationToken).ConfigureAwait(false);
-
-        try
-        {
-            foreach (KeyValuePair<uint, TunnelClient> mapping in Mappings)
-            {
-                if (mapping.Value.TimedOut)
-                {
-                    int ipHash = mapping.Value.RemoteEp!.Address.GetHashCode();
-
-                    if (--ConnectionCounter[ipHash] <= 0)
-                        ConnectionCounter.Remove(ipHash);
-
-                    Mappings.Remove(mapping.Key);
-
-                    if (Logger.IsEnabled(LogLevel.Information))
-                    {
-                        Logger.LogInfo(
-                            FormattableString.Invariant($"{DateTimeOffset.Now} Removed V{Version} client from ") +
-                            FormattableString.Invariant($"{mapping.Value.RemoteEp}, {Mappings.Count} clients from ") +
-                            FormattableString.Invariant($"{Mappings.Values.Select(q => q.RemoteEp!.Address).Distinct()
-                                .Count()} IPs."));
-                    }
-                }
-            }
-
-            clients = Mappings.Count;
-
-            PingCounter.Clear();
-        }
-        finally
-        {
-            clientsSemaphoreSlim.Release();
-        }
-
-        return clients;
+        if (--ConnectionCounter[ipHash] <= 0)
+            ConnectionCounter.Remove(ipHash);
     }
 
     protected override async Task ReceiveAsync(
@@ -88,6 +54,13 @@ internal sealed class TunnelV3 : Tunnel
     {
         uint senderId = BitConverter.ToUInt32(buffer[..4].Span);
         uint receiverId = BitConverter.ToUInt32(buffer[4..8].Span);
+
+        if (Logger.IsEnabled(LogLevel.Debug))
+        {
+            Logger.LogDebug(
+                FormattableString.Invariant($"V{Version} client {remoteEp} ({senderId} -> {receiverId}) received") +
+                FormattableString.Invariant($" {buffer.Length}: {Convert.ToHexString(buffer.Span)}"));
+        }
 
         if (senderId == 0)
         {
@@ -102,6 +75,12 @@ internal sealed class TunnelV3 : Tunnel
             || remoteEp.Address.Equals(IPAddress.Any) || remoteEp.Address.Equals(IPAddress.Broadcast)
             || remoteEp.Port == 0)
         {
+            if (Logger.IsEnabled(LogLevel.Debug))
+            {
+                Logger.LogDebug(
+                    FormattableString.Invariant($"V{Version} client {remoteEp} invalid endpoint."));
+            }
+
             return;
         }
 
@@ -109,16 +88,8 @@ internal sealed class TunnelV3 : Tunnel
 
         try
         {
-            if (senderId == 0 && receiverId == 0)
-            {
-                if (buffer.Length == 50 && !IsPingLimitReached(remoteEp.Address))
-                {
-                    await Client!.Client.SendToAsync(buffer[..12], SocketFlags.None, remoteEp, cancellationToken)
-                        .ConfigureAwait(false);
-                }
-
+            if (await HandlePingRequestAsync(senderId, receiverId, buffer, remoteEp, cancellationToken).ConfigureAwait(false))
                 return;
-            }
 
             if (Mappings.TryGetValue(senderId, out TunnelClient? sender))
             {
@@ -128,9 +99,25 @@ internal sealed class TunnelV3 : Tunnel
                         && IsNewConnectionAllowed(remoteEp.Address, sender.RemoteEp!.Address))
                     {
                         sender.RemoteEp = new IPEndPoint(remoteEp.Address, remoteEp.Port);
+
+                        if (Logger.IsEnabled(LogLevel.Information))
+                        {
+                            Logger.LogInfo(
+                                FormattableString.Invariant($"{DateTimeOffset.Now} New V{Version} client from {remoteEp}, ") +
+                                FormattableString.Invariant($"{Mappings.Count} clients from ") +
+                                FormattableString.Invariant($"{Mappings.Values.Select(q => q.RemoteEp?.Address)
+                                    .Where(q => q is not null).Distinct().Count()} IPs."));
+                        }
                     }
                     else
                     {
+                        if (Logger.IsEnabled(LogLevel.Debug))
+                        {
+                            Logger.LogDebug(
+                                FormattableString.Invariant($"V{Version} client {remoteEp}") +
+                                FormattableString.Invariant($" did not match {sender.RemoteEp}."));
+                        }
+
                         return;
                     }
                 }
@@ -158,12 +145,34 @@ internal sealed class TunnelV3 : Tunnel
             if (Mappings.TryGetValue(receiverId, out TunnelClient? receiver)
                 && !receiver.RemoteEp!.Equals(sender.RemoteEp))
             {
-                await Client!.Client.SendAsync(buffer, SocketFlags.None, cancellationToken).ConfigureAwait(false);
+                if (Logger.IsEnabled(LogLevel.Debug))
+                {
+                    Logger.LogDebug(
+                        FormattableString.Invariant($"V{Version} client {remoteEp} (existing) sending:") +
+                        FormattableString.Invariant($" {Convert.ToHexString(buffer.Span)}."));
+                }
+
+                await Client!.Client.SendToAsync(buffer, SocketFlags.None, receiver.RemoteEp, cancellationToken)
+                         .ConfigureAwait(false);
+            }
+            else if (Logger.IsEnabled(LogLevel.Debug))
+            {
+                Logger.LogDebug(
+                    FormattableString.Invariant($"V{Version} client {remoteEp} mapping not found or receiver") +
+                    FormattableString.Invariant($" {receiver?.RemoteEp!.Address.MapToIPv4()} is sender") +
+                    FormattableString.Invariant($" {sender.RemoteEp!.Address.MapToIPv4()}."));
             }
         }
         finally
         {
-            clientsSemaphoreSlim.Release();
+            int locks = clientsSemaphoreSlim.Release();
+
+            if (Logger.IsEnabled(LogLevel.Debug))
+            {
+                Logger.LogDebug(
+                    FormattableString.Invariant($"V{Version} client {remoteEp} message handled,") +
+                    FormattableString.Invariant($" pending receive threads: {locks}."));
+            }
         }
     }
 
@@ -194,7 +203,7 @@ internal sealed class TunnelV3 : Tunnel
     private void ExecuteCommand(TunnelCommand command, ReadOnlyMemory<byte> data, IPEndPoint remoteEp)
     {
         if (TimeSpan.FromTicks(DateTime.UtcNow.Ticks - lastCommandTick).TotalSeconds < CommandRateLimit
-            || maintenancePasswordSha1 is null || !Options.MaintenancePassword.Any())
+            || maintenancePasswordSha1 is null || !Options.MaintenancePassword!.Any())
         {
             return;
         }

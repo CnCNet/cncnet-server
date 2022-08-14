@@ -26,7 +26,7 @@ internal sealed class CnCNetBackgroundService : BackgroundService
     public override async Task StartAsync(CancellationToken cancellationToken)
     {
         if (logger.IsEnabled(LogLevel.Information))
-            logger.LogInfo(FormattableString.Invariant($"{DateTimeOffset.Now} Server starting."));
+            logger.LogInfo(FormattableString.Invariant($"{DateTimeOffset.Now} Server {options.Name} starting."));
 
         try
         {
@@ -39,13 +39,13 @@ internal sealed class CnCNetBackgroundService : BackgroundService
         }
 
         if (logger.IsEnabled(LogLevel.Information))
-            logger.LogInfo(FormattableString.Invariant($"{DateTimeOffset.Now} Server started."));
+            logger.LogInfo(FormattableString.Invariant($"{DateTimeOffset.Now} Server {options.Name} started."));
     }
 
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
         if (logger.IsEnabled(LogLevel.Information))
-            logger.LogInfo(FormattableString.Invariant($"{DateTimeOffset.Now} Server stopping."));
+            logger.LogInfo(FormattableString.Invariant($"{DateTimeOffset.Now} Server {options.Name} stopping."));
 
         try
         {
@@ -58,7 +58,7 @@ internal sealed class CnCNetBackgroundService : BackgroundService
         }
 
         if (logger.IsEnabled(LogLevel.Information))
-            logger.LogInfo(FormattableString.Invariant($"{DateTimeOffset.Now} Server stopped."));
+            logger.LogInfo(FormattableString.Invariant($"{DateTimeOffset.Now} Server {options.Name} stopped."));
     }
 
     protected override Task ExecuteAsync(CancellationToken stoppingToken)

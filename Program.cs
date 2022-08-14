@@ -29,7 +29,7 @@ try
                 .AddHttpClient(nameof(Tunnel))
                 .ConfigureHttpClient((_, httpClient) =>
                 {
-                    httpClient.BaseAddress = new Uri(options.MasterServerUrl);
+                    httpClient.BaseAddress = new Uri(options.MasterServerUrl!);
                     httpClient.Timeout = TimeSpan.FromMilliseconds(10000);
                 })
                 .ConfigurePrimaryHttpMessageHandler(_ => new HttpClientHandler

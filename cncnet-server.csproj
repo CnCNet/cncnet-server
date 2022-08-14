@@ -7,9 +7,6 @@
     <Copyright>Copyright © 2022</Copyright>
     <RootNamespace>CnCNetServer</RootNamespace>
     <AssemblyName>cncnet-server</AssemblyName>
-    <Version>0.0.0.1</Version>
-    <FileVersion>0.0.0.1</FileVersion>
-    <InformationalVersion>0.0.0.1</InformationalVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <ComVisible>false</ComVisible>

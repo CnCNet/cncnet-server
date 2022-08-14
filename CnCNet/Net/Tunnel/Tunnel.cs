@@ -8,6 +8,8 @@ using Microsoft.Extensions.Logging;
 internal abstract class Tunnel : IAsyncDisposable
 {
     protected const int CommandRateLimit = 60; // 1 per X seconds
+    protected const int PingRequestPacketSize = 50;
+    protected const int PingResponsePacketSize = 12;
 
     private const int MasterAnnounceInterval = 60 * 1000;
     private const int MaxPingsPerIp = 20;
@@ -16,6 +18,8 @@ internal abstract class Tunnel : IAsyncDisposable
     private const int DefaultMaxClients = 200;
     private const int MinPort = 1024;
     private const int MinIpLimit = 1;
+
+    protected readonly SemaphoreSlim MappingsSemaphoreSlim = new(1, 1);
 
     private readonly string name;
     private readonly System.Timers.Timer heartbeatTimer = new(MasterAnnounceInterval);
@@ -29,7 +33,7 @@ internal abstract class Tunnel : IAsyncDisposable
         this.httpClientFactory = httpClientFactory;
         Options = options;
         Logger = logger;
-        name = options.Name.Any() ? options.Name.Replace(";", string.Empty) : "Unnamed server";
+        name = options.Name!.Any() ? options.Name!.Replace(";", string.Empty) : "Unnamed server";
         MaxClients = options.MaxClients < MinMaxClients ? DefaultMaxClients : options.MaxClients;
         Mappings = new Dictionary<uint, TunnelClient>(MaxClients);
         ConnectionCounter = new Dictionary<int, int>(MaxClients);
@@ -95,16 +99,101 @@ internal abstract class Tunnel : IAsyncDisposable
     {
         Client?.Dispose();
         heartbeatTimer.Dispose();
+        MappingsSemaphoreSlim.Dispose();
 
         return ValueTask.CompletedTask;
     }
 
-    protected abstract Task<int> CleanupConnectionsAsync(CancellationToken cancellationToken);
+    protected virtual async Task<int> CleanupConnectionsAsync(CancellationToken cancellationToken)
+    {
+        int clients;
+
+        await MappingsSemaphoreSlim.WaitAsync(cancellationToken).ConfigureAwait(false);
+
+        try
+        {
+            foreach (KeyValuePair<uint, TunnelClient> mapping in Mappings.Where(x => x.Value.TimedOut).ToList())
+            {
+                CleanupConnection(mapping.Value);
+
+                Mappings.Remove(mapping.Key);
+
+                if (Logger.IsEnabled(LogLevel.Information))
+                {
+                    Logger.LogInfo(
+                        FormattableString.Invariant($"{DateTimeOffset.Now} Removed V{Version} client from ") +
+                        FormattableString.Invariant($"{mapping.Value.RemoteEp?.ToString() ?? "(not connected)"}, ") +
+                        FormattableString.Invariant($"{Mappings.Count} clients from {Mappings.Values
+                            .Select(q => q.RemoteEp?.Address).Where(q => q is not null).Distinct().Count()} IPs."));
+                }
+            }
+
+            clients = Mappings.Count;
+
+            PingCounter.Clear();
+        }
+        finally
+        {
+            MappingsSemaphoreSlim.Release();
+        }
+
+        return clients;
+    }
+
+    protected virtual void CleanupConnection(TunnelClient tunnelClient)
+    {
+    }
 
     protected abstract Task ReceiveAsync(
         ReadOnlyMemory<byte> buffer, IPEndPoint remoteEp, CancellationToken cancellationToken);
 
-    protected bool IsPingLimitReached(IPAddress address)
+    protected async Task<bool> HandlePingRequestAsync(
+        uint senderId, uint receiverId, ReadOnlyMemory<byte> buffer, IPEndPoint remoteEp, CancellationToken cancellationToken)
+    {
+        if (senderId != 0 || receiverId != 0)
+            return false;
+
+        if (buffer.Length == PingRequestPacketSize)
+        {
+            if (!IsPingLimitReached(remoteEp.Address))
+            {
+                if (Logger.IsEnabled(LogLevel.Debug))
+                {
+                    Logger.LogDebug(
+                        FormattableString.Invariant($"V{Version} client {remoteEp} replying to ping ") +
+                        FormattableString.Invariant($"({PingCounter.Count}/{MaxPingsGlobal}):") +
+                        FormattableString.Invariant($" {Convert.ToHexString(buffer.Span[..PingResponsePacketSize])}."));
+                }
+
+                await Client!.Client.SendToAsync(
+                        buffer[..PingResponsePacketSize], SocketFlags.None, remoteEp, cancellationToken)
+                    .ConfigureAwait(false);
+
+                return true;
+            }
+
+            if (Logger.IsEnabled(LogLevel.Debug))
+            {
+                Logger.LogDebug(FormattableString.Invariant($"V{Version} client {remoteEp} ping request ignored:") +
+                                FormattableString.Invariant($" ping limit reached."));
+            }
+
+            if (Logger.IsEnabled(LogLevel.Warning))
+                Logger.LogWarning("Ping limit reached.");
+        }
+        else if (Logger.IsEnabled(LogLevel.Debug))
+        {
+            Logger.LogDebug(FormattableString.Invariant($"V{Version} client {remoteEp.Address} ping request ignored:") +
+                            FormattableString.Invariant($" invalid packet size {buffer.Length}."));
+        }
+
+        return false;
+    }
+
+    protected int GetIpLimit()
+        => ipLimit ??= Options.IpLimit < MinIpLimit ? DefaultIpLimit : Options.IpLimit;
+
+    private bool IsPingLimitReached(IPAddress address)
     {
         if (PingCounter.Count >= MaxPingsGlobal)
             return true;
@@ -119,14 +208,11 @@ internal abstract class Tunnel : IAsyncDisposable
         return false;
     }
 
-    protected int GetIpLimit()
-        => ipLimit ??= Options.IpLimit < MinIpLimit ? DefaultIpLimit : Options.IpLimit;
-
     private async Task SendMasterServerHeartbeatAsync(int clients, CancellationToken cancellationToken)
     {
         string path = FormattableString.Invariant($"?version={Version}&name={Uri.EscapeDataString(name)}&port={GetPort()}") +
             FormattableString.Invariant($"&clients={clients}&maxclients={MaxClients}") +
-            FormattableString.Invariant($"&masterpw={Uri.EscapeDataString(Options.MasterPassword)}") +
+            FormattableString.Invariant($"&masterpw={Uri.EscapeDataString(Options.MasterPassword!)}") +
             FormattableString.Invariant($"&maintenance={(MaintenanceModeEnabled ? 1 : 0)}");
         HttpResponseMessage? httpResponseMessage = null;
 
