@@ -152,7 +152,8 @@ internal sealed class TunnelV2 : Tunnel
                         if (Logger.IsEnabled(LogLevel.Debug))
                         {
                             Logger.LogDebug(
-                                FormattableString.Invariant($"V{Version} client {remoteEp} (existing) sending:") +
+                                FormattableString.Invariant($"V{Version} client {remoteEp} ({senderId}) sending to ") +
+                                FormattableString.Invariant($"{receiver.RemoteEp} ({receiverId}): ") +
                                 FormattableString.Invariant($" {Convert.ToHexString(buffer.Span)}."));
                         }
 

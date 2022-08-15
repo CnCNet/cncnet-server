@@ -9,6 +9,8 @@ using Microsoft.Extensions.Logging;
 
 internal sealed class TunnelV3 : Tunnel
 {
+    private const int TunnelCommandRequestPacketSize = 8 + 1 + 20; // 8=receiver+sender ids, 1=command, 20=sha1 pass
+
     private readonly SemaphoreSlim clientsSemaphoreSlim = new(1, 1);
     private readonly byte[]? maintenancePasswordSha1;
     private long lastCommandTick;
@@ -64,7 +66,7 @@ internal sealed class TunnelV3 : Tunnel
 
         if (senderId == 0)
         {
-            if (receiverId == uint.MaxValue && buffer.Length >= 8 + 1 + 20) // 8=receiver+sender ids, 1=command, 20=sha1 pass
+            if (receiverId == uint.MaxValue && buffer.Length >= TunnelCommandRequestPacketSize)
                 ExecuteCommand((TunnelCommand)buffer.Span[8..9][0], buffer, remoteEp);
 
             if (receiverId != 0)
@@ -148,7 +150,8 @@ internal sealed class TunnelV3 : Tunnel
                 if (Logger.IsEnabled(LogLevel.Debug))
                 {
                     Logger.LogDebug(
-                        FormattableString.Invariant($"V{Version} client {remoteEp} (existing) sending:") +
+                        FormattableString.Invariant($"V{Version} client {remoteEp} ({senderId}) sending to ") +
+                        FormattableString.Invariant($"{receiver.RemoteEp} ({receiverId}): ") +
                         FormattableString.Invariant($" {Convert.ToHexString(buffer.Span)}."));
                 }
 
