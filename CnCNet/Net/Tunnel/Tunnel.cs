@@ -8,8 +8,6 @@ using Microsoft.Extensions.Logging;
 internal abstract class Tunnel : IAsyncDisposable
 {
     protected const int CommandRateLimit = 60; // 1 per X seconds
-    protected const int PingRequestPacketSize = 50;
-    protected const int PingResponsePacketSize = 12;
 
     private const int MasterAnnounceInterval = 60 * 1000;
     private const int MaxPingsPerIp = 20;
@@ -18,10 +16,13 @@ internal abstract class Tunnel : IAsyncDisposable
     private const int DefaultMaxClients = 200;
     private const int MinPort = 1024;
     private const int MinIpLimit = 1;
+    private const int PingRequestPacketSize = 50;
+    private const int PingResponsePacketSize = 12;
 
     protected readonly SemaphoreSlim MappingsSemaphoreSlim = new(1, 1);
 
     private readonly string name;
+    private readonly Dictionary<int, int> pingCounter = new(MaxPingsGlobal);
     private readonly System.Timers.Timer heartbeatTimer = new(MasterAnnounceInterval);
     private readonly IHttpClientFactory httpClientFactory;
 
@@ -53,11 +54,9 @@ internal abstract class Tunnel : IAsyncDisposable
 
     protected Dictionary<uint, TunnelClient> Mappings { get; }
 
-    protected Dictionary<int, int> PingCounter { get; } = new(MaxPingsGlobal);
-
     protected ILogger Logger { get; }
 
-    protected UdpClient? Client { get; private set; }
+    protected Socket? Client { get; private set; }
 
     protected int MaxClients { get; }
 
@@ -65,13 +64,15 @@ internal abstract class Tunnel : IAsyncDisposable
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
-        Client = new UdpClient(GetPort(), AddressFamily.InterNetworkV6);
+        Client = new Socket(SocketType.Dgram, ProtocolType.Udp);
 
         await StartHeartbeatAsync(cancellationToken).ConfigureAwait(false);
 
         using IMemoryOwner<byte> memoryOwner = MemoryPool<byte>.Shared.Rent(1024);
         Memory<byte> buffer = memoryOwner.Memory[..1024];
-        var remoteEp = new IPEndPoint(IPAddress.IPv6Any, 0);
+        var remoteEp = new IPEndPoint(IPAddress.Any, 0);
+
+        Client.Bind(new IPEndPoint(IPAddress.IPv6Any, GetPort()));
 
         if (Logger.IsEnabled(LogLevel.Information))
         {
@@ -82,7 +83,7 @@ internal abstract class Tunnel : IAsyncDisposable
         while (!cancellationToken.IsCancellationRequested)
         {
             SocketReceiveFromResult socketReceiveFromResult =
-                await Client.Client.ReceiveFromAsync(buffer, SocketFlags.None, remoteEp, cancellationToken)
+                await Client.ReceiveFromAsync(buffer, SocketFlags.None, remoteEp, cancellationToken)
                     .ConfigureAwait(false);
 
             if (socketReceiveFromResult.ReceivedBytes >= 8)
@@ -130,7 +131,7 @@ internal abstract class Tunnel : IAsyncDisposable
 
             clients = Mappings.Count;
 
-            PingCounter.Clear();
+            pingCounter.Clear();
         }
         finally
         {
@@ -161,11 +162,11 @@ internal abstract class Tunnel : IAsyncDisposable
                 {
                     Logger.LogDebug(
                         FormattableString.Invariant($"V{Version} client {remoteEp} replying to ping ") +
-                        FormattableString.Invariant($"({PingCounter.Count}/{MaxPingsGlobal}):") +
+                        FormattableString.Invariant($"({pingCounter.Count}/{MaxPingsGlobal}):") +
                         FormattableString.Invariant($" {Convert.ToHexString(buffer.Span[..PingResponsePacketSize])}."));
                 }
 
-                await Client!.Client.SendToAsync(
+                await Client!.SendToAsync(
                         buffer[..PingResponsePacketSize], SocketFlags.None, remoteEp, cancellationToken)
                     .ConfigureAwait(false);
 
@@ -195,15 +196,15 @@ internal abstract class Tunnel : IAsyncDisposable
 
     private bool IsPingLimitReached(IPAddress address)
     {
-        if (PingCounter.Count >= MaxPingsGlobal)
+        if (pingCounter.Count >= MaxPingsGlobal)
             return true;
 
         int ipHash = address.GetHashCode();
 
-        if (PingCounter.TryGetValue(ipHash, out int count) && count >= MaxPingsPerIp)
+        if (pingCounter.TryGetValue(ipHash, out int count) && count >= MaxPingsPerIp)
             return true;
 
-        PingCounter[ipHash] = ++count;
+        pingCounter[ipHash] = ++count;
 
         return false;
     }

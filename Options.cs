@@ -46,4 +46,7 @@ internal sealed record Options
 
     [Option("systemloglevel", Default = LogLevel.Warning, HelpText = "Low level system messages log level")]
     public LogLevel SystemLogLevel { get; set; }
+
+    [Option("announceipv6", Default = false, HelpText = "Announce IPv6 address instead of IPv4 address to master server")]
+    public bool AnnounceIpV6 { get; set; }
 }

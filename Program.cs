@@ -46,7 +46,8 @@ try
                     },
                     ConnectCallback = async (context, token) =>
                     {
-                        var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                        AddressFamily adreAddressFamily = options.AnnounceIpV6 ? AddressFamily.InterNetworkV6 : AddressFamily.InterNetwork;
+                        var socket = new Socket(adreAddressFamily, SocketType.Stream, ProtocolType.Tcp);
                         socket.NoDelay = true;
 
                         try

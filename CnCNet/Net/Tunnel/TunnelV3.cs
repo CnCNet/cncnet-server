@@ -155,15 +155,15 @@ internal sealed class TunnelV3 : Tunnel
                         FormattableString.Invariant($" {Convert.ToHexString(buffer.Span)}."));
                 }
 
-                await Client!.Client.SendToAsync(buffer, SocketFlags.None, receiver.RemoteEp, cancellationToken)
+                await Client!.SendToAsync(buffer, SocketFlags.None, receiver.RemoteEp, cancellationToken)
                          .ConfigureAwait(false);
             }
             else if (Logger.IsEnabled(LogLevel.Debug))
             {
                 Logger.LogDebug(
                     FormattableString.Invariant($"V{Version} client {remoteEp} mapping not found or receiver") +
-                    FormattableString.Invariant($" {receiver?.RemoteEp!.Address.MapToIPv4()} is sender") +
-                    FormattableString.Invariant($" {sender.RemoteEp!.Address.MapToIPv4()}."));
+                    FormattableString.Invariant($" {receiver?.RemoteEp!.Address} is sender") +
+                    FormattableString.Invariant($" {sender.RemoteEp!.Address}."));
             }
         }
         finally

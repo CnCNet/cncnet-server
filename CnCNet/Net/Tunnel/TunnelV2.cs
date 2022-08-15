@@ -127,13 +127,13 @@ internal sealed class TunnelV2 : Tunnel
                                 .Where(q => q is not null).Distinct().Count()} IPs."));
                     }
                 }
-                else if (!remoteEp.Address.MapToIPv4().Equals(sender.RemoteEp.Address.MapToIPv4()))
+                else if (!remoteEp.Address.Equals(sender.RemoteEp.Address))
                 {
                     if (Logger.IsEnabled(LogLevel.Debug))
                     {
                         Logger.LogDebug(
-                            FormattableString.Invariant($"V{Version} client {remoteEp.Address.MapToIPv4()}:{remoteEp.Port}") +
-                            FormattableString.Invariant($" did not match {sender.RemoteEp.Address.MapToIPv4()}:{sender.RemoteEp.Port}."));
+                            FormattableString.Invariant($"V{Version} client {remoteEp.Address}:{remoteEp.Port}") +
+                            FormattableString.Invariant($" did not match {sender.RemoteEp.Address}:{sender.RemoteEp.Port}."));
                     }
 
                     return;
@@ -147,7 +147,7 @@ internal sealed class TunnelV2 : Tunnel
                         Logger.LogDebug(FormattableString.Invariant($"V{Version} client {remoteEp} mapping found."));
 
                     if (receiver.RemoteEp is not null
-                        && !receiver.RemoteEp.Address.MapToIPv4().Equals(sender.RemoteEp.Address.MapToIPv4()))
+                        && !receiver.RemoteEp.Address.Equals(sender.RemoteEp.Address))
                     {
                         if (Logger.IsEnabled(LogLevel.Debug))
                         {
@@ -157,7 +157,7 @@ internal sealed class TunnelV2 : Tunnel
                                 FormattableString.Invariant($" {Convert.ToHexString(buffer.Span)}."));
                         }
 
-                        await Client!.Client.SendToAsync(buffer, SocketFlags.None, receiver.RemoteEp, cancellationToken)
+                        await Client!.SendToAsync(buffer, SocketFlags.None, receiver.RemoteEp, cancellationToken)
                             .ConfigureAwait(false);
                     }
                 }
@@ -165,8 +165,8 @@ internal sealed class TunnelV2 : Tunnel
                 {
                     Logger.LogDebug(
                         FormattableString.Invariant($"V{Version} client {remoteEp} mapping not found or receiver") +
-                        FormattableString.Invariant($" {receiver?.RemoteEp!.Address.MapToIPv4()} is sender") +
-                        FormattableString.Invariant($" {sender.RemoteEp.Address.MapToIPv4()}."));
+                        FormattableString.Invariant($" {receiver?.RemoteEp!.Address} is sender") +
+                        FormattableString.Invariant($" {sender.RemoteEp.Address}."));
                 }
             }
         }
