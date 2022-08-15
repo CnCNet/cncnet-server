@@ -65,13 +65,13 @@ internal abstract class Tunnel : IAsyncDisposable
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
-        Client = new UdpClient(GetPort());
+        Client = new UdpClient(GetPort(), AddressFamily.InterNetworkV6);
 
         await StartHeartbeatAsync(cancellationToken).ConfigureAwait(false);
 
         using IMemoryOwner<byte> memoryOwner = MemoryPool<byte>.Shared.Rent(1024);
         Memory<byte> buffer = memoryOwner.Memory[..1024];
-        var remoteEp = new IPEndPoint(IPAddress.Any, 0);
+        var remoteEp = new IPEndPoint(IPAddress.IPv6Any, 0);
 
         if (Logger.IsEnabled(LogLevel.Information))
         {

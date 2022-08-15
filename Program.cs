@@ -1,4 +1,7 @@
 ﻿using System.Net;
+using System.Net.Security;
+using System.Net.Sockets;
+using System.Security.Authentication;
 using CnCNetServer;
 using CommandLine;
 using CommandLine.Text;
@@ -31,10 +34,32 @@ try
                 {
                     httpClient.BaseAddress = new Uri(options.MasterServerUrl!);
                     httpClient.Timeout = TimeSpan.FromMilliseconds(10000);
+                    httpClient.DefaultRequestVersion = HttpVersion.Version11;
+                    httpClient.DefaultVersionPolicy = HttpVersionPolicy.RequestVersionOrHigher;
                 })
-                .ConfigurePrimaryHttpMessageHandler(_ => new HttpClientHandler
+                .ConfigurePrimaryHttpMessageHandler(_ => new SocketsHttpHandler
                 {
-                    AutomaticDecompression = DecompressionMethods.All
+                    AutomaticDecompression = DecompressionMethods.All,
+                    SslOptions = new SslClientAuthenticationOptions
+                    {
+                        EnabledSslProtocols = SslProtocols.Tls13 | SslProtocols.Tls12
+                    },
+                    ConnectCallback = async (context, token) =>
+                    {
+                        var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                        socket.NoDelay = true;
+
+                        try
+                        {
+                            await socket.ConnectAsync(context.DnsEndPoint, token).ConfigureAwait(false);
+                            return new NetworkStream(socket, ownsSocket: true);
+                        }
+                        catch
+                        {
+                            socket.Dispose();
+                            throw;
+                        }
+                    }
                 });
         })
         .ConfigureLogging((_, loggingBuilder) => loggingBuilder.ConfigureLogging(options))
