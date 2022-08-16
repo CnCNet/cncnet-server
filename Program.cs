@@ -17,6 +17,9 @@ try
 
     Console.WriteLine(HelpText.AutoBuild(result, null, null));
 
+    if (result.Errors.Any())
+        return 1;
+
     Options options = ((Parsed<Options>)result).Value;
 
     host = Host.CreateDefaultBuilder(args)
@@ -74,3 +77,5 @@ catch (Exception ex)
 
     logger.LogExceptionDetails(ex);
 }
+
+return 0;

@@ -301,7 +301,7 @@ internal sealed class TunnelV2 : Tunnel
                 request.HttpContext.Connection.RemotePort);
 
             Logger.LogInfo(FormattableString.Invariant(
-                $"{DateTimeOffset.Now} New V{Version} lobby from host {host} with {clients} clients response: {msg}."));
+                $"{DateTimeOffset.Now} New V{Version} lobby from host {host} response: {msg}."));
         }
 
         return Results.Text(msg);
