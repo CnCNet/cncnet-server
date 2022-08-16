@@ -74,9 +74,12 @@ internal sealed class PeerToPeerUtil : IDisposable
 
     private async Task StartReceiverAsync(int listenPort, CancellationToken cancellationToken)
     {
-        using var client = new UdpClient(listenPort);
-        Memory<byte> buffer = new byte[64];
+        using var client = new Socket(SocketType.Dgram, ProtocolType.Udp);
+        using IMemoryOwner<byte> receiveMemoryOwner = MemoryPool<byte>.Shared.Rent(64);
+        Memory<byte> buffer = receiveMemoryOwner.Memory[..64];
         var remoteEp = new IPEndPoint(IPAddress.Any, 0);
+
+        client.Bind(new IPEndPoint(IPAddress.IPv6Any, listenPort));
 
         if (logger.IsEnabled(LogLevel.Information))
         {
@@ -86,7 +89,7 @@ internal sealed class PeerToPeerUtil : IDisposable
 
         while (!cancellationToken.IsCancellationRequested)
         {
-            SocketReceiveFromResult socketReceiveFromResult = await client.Client.ReceiveFromAsync(
+            SocketReceiveFromResult socketReceiveFromResult = await client.ReceiveFromAsync(
                 buffer, SocketFlags.None, remoteEp, cancellationToken).ConfigureAwait(false);
 
             if (socketReceiveFromResult.ReceivedBytes == 48)
@@ -95,7 +98,7 @@ internal sealed class PeerToPeerUtil : IDisposable
     }
 
     private async Task ReceiveAsync(
-        UdpClient client, ReadOnlyMemory<byte> buffer, IPEndPoint remoteEp, CancellationToken cancellationToken)
+        Socket client, ReadOnlyMemory<byte> buffer, IPEndPoint remoteEp, CancellationToken cancellationToken)
     {
         if (IsInvalidRemoteIpEndPoint(remoteEp)
             || await IsConnectionLimitReachedAsync(remoteEp.Address, cancellationToken).ConfigureAwait(false))
@@ -113,7 +116,7 @@ internal sealed class PeerToPeerUtil : IDisposable
         for (int i = 0; i < 6; i++)
             sendBuffer.Span[i] ^= 0x20;
 
-        await client.Client.SendToAsync(sendBuffer, SocketFlags.None, remoteEp, cancellationToken).ConfigureAwait(false);
+        await client.SendToAsync(sendBuffer, SocketFlags.None, remoteEp, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<bool> IsConnectionLimitReachedAsync(IPAddress address, CancellationToken cancellationToken)
