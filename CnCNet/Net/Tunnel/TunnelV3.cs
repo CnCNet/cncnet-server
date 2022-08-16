@@ -162,8 +162,8 @@ internal sealed class TunnelV3 : Tunnel
             {
                 Logger.LogDebug(
                     FormattableString.Invariant($"V{Version} client {remoteEp} mapping not found or receiver") +
-                    FormattableString.Invariant($" {receiver?.RemoteEp!.Address} is sender") +
-                    FormattableString.Invariant($" {sender.RemoteEp!.Address}."));
+                    FormattableString.Invariant($" {receiver?.RemoteEp!} is sender") +
+                    FormattableString.Invariant($" {sender.RemoteEp!}."));
             }
         }
         finally

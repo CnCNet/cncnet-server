@@ -127,13 +127,13 @@ internal sealed class TunnelV2 : Tunnel
                                 .Where(q => q is not null).Distinct().Count()} IPs."));
                     }
                 }
-                else if (!remoteEp.Address.Equals(sender.RemoteEp.Address))
+                else if (!remoteEp.Equals(sender.RemoteEp))
                 {
                     if (Logger.IsEnabled(LogLevel.Debug))
                     {
                         Logger.LogDebug(
-                            FormattableString.Invariant($"V{Version} client {remoteEp.Address}:{remoteEp.Port}") +
-                            FormattableString.Invariant($" did not match {sender.RemoteEp.Address}:{sender.RemoteEp.Port}."));
+                            FormattableString.Invariant($"V{Version} client {remoteEp}") +
+                            FormattableString.Invariant($" did not match {sender.RemoteEp}."));
                     }
 
                     return;
@@ -147,7 +147,7 @@ internal sealed class TunnelV2 : Tunnel
                         Logger.LogDebug(FormattableString.Invariant($"V{Version} client {remoteEp} mapping found."));
 
                     if (receiver.RemoteEp is not null
-                        && !receiver.RemoteEp.Address.Equals(sender.RemoteEp.Address))
+                        && !receiver.RemoteEp.Equals(sender.RemoteEp))
                     {
                         if (Logger.IsEnabled(LogLevel.Debug))
                         {
@@ -165,8 +165,8 @@ internal sealed class TunnelV2 : Tunnel
                 {
                     Logger.LogDebug(
                         FormattableString.Invariant($"V{Version} client {remoteEp} mapping not found or receiver") +
-                        FormattableString.Invariant($" {receiver?.RemoteEp!.Address} is sender") +
-                        FormattableString.Invariant($" {sender.RemoteEp.Address}."));
+                        FormattableString.Invariant($" {receiver?.RemoteEp!} is sender") +
+                        FormattableString.Invariant($" {sender.RemoteEp}."));
                 }
             }
         }
@@ -293,6 +293,16 @@ internal sealed class TunnelV2 : Tunnel
             return Results.StatusCode((int)HttpStatusCode.ServiceUnavailable);
 
         string msg = FormattableString.Invariant($"[{string.Join(",", clientIds)}]");
+
+        if (Logger.IsEnabled(LogLevel.Information))
+        {
+            var host = new IPEndPoint(
+                request.HttpContext.Connection.RemoteIpAddress!,
+                request.HttpContext.Connection.RemotePort);
+
+            Logger.LogInfo(FormattableString.Invariant(
+                $"{DateTimeOffset.Now} New V{Version} lobby from host {host} with {clients} clients response: {msg}."));
+        }
 
         return Results.Text(msg);
     }
