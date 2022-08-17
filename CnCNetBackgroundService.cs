@@ -69,18 +69,18 @@ internal sealed class CnCNetBackgroundService : BackgroundService
         var tasks = new List<Task>();
 
         if (options.TunnelV3Enabled)
-            tasks.Add(CreateLongRunningTask(() => tunnelV3.StartAsync(stoppingToken), stoppingToken));
+            tasks.Add(CreateLongRunningTask(() => tunnelV3.StartAsync(stoppingToken), tunnelV3, stoppingToken));
 
         if (options.TunnelV2Enabled)
         {
-            tasks.Add(CreateLongRunningTask(() => tunnelV2.StartAsync(stoppingToken), stoppingToken));
-            tasks.Add(CreateLongRunningTask(tunnelV2.StartHttpServerAsync, stoppingToken));
+            tasks.Add(CreateLongRunningTask(() => tunnelV2.StartAsync(stoppingToken), tunnelV2, stoppingToken));
+            tasks.Add(CreateLongRunningTask(() => tunnelV2.StartHttpServerAsync(stoppingToken), tunnelV2, stoppingToken));
         }
 
         if (!options.NoPeerToPeer)
         {
-            tasks.Add(CreateLongRunningTask(() => peerToPeerUtil1.StartAsync(8054, stoppingToken), stoppingToken));
-            tasks.Add(CreateLongRunningTask(() => peerToPeerUtil2.StartAsync(3478, stoppingToken), stoppingToken));
+            tasks.Add(CreateLongRunningTask(() => peerToPeerUtil1.StartAsync(8054, stoppingToken), peerToPeerUtil1, stoppingToken));
+            tasks.Add(CreateLongRunningTask(() => peerToPeerUtil2.StartAsync(3478, stoppingToken), peerToPeerUtil2, stoppingToken));
         }
 
         return WhenAllSafe(tasks);
@@ -104,7 +104,7 @@ internal sealed class CnCNetBackgroundService : BackgroundService
             throw whenAllTask.Exception;
     }
 
-    private Task CreateLongRunningTask(Func<Task> task, CancellationToken cancellationToken)
+    private Task CreateLongRunningTask(Func<Task> task, IAsyncDisposable disposable, CancellationToken cancellationToken)
     {
         return Task.Factory.StartNew(
             async _ =>
@@ -118,9 +118,8 @@ internal sealed class CnCNetBackgroundService : BackgroundService
                     catch (Exception ex) when (ex is not OperationCanceledException)
                     {
                         logger.LogExceptionDetails(ex);
+                        await disposable.DisposeAsync().ConfigureAwait(false);
                     }
-
-                    await Task.Delay(1000, cancellationToken).ConfigureAwait(false);
                 }
             },
             null,

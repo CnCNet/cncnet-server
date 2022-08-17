@@ -18,14 +18,15 @@ internal abstract class Tunnel : IAsyncDisposable
     private const int MinIpLimit = 1;
     private const int PingRequestPacketSize = 50;
     private const int PingResponsePacketSize = 12;
+    private const int MaximumPacketSize = 128;
 
-    protected readonly SemaphoreSlim MappingsSemaphoreSlim = new(1, 1);
+    protected SemaphoreSlim? MappingsSemaphoreSlim;
 
     private readonly string name;
     private readonly Dictionary<int, int> pingCounter = new(MaxPingsGlobal);
-    private readonly System.Timers.Timer heartbeatTimer = new(MasterAnnounceInterval);
     private readonly IHttpClientFactory httpClientFactory;
 
+    private System.Timers.Timer? heartbeatTimer;
     private int? port;
     private int? ipLimit;
 
@@ -64,14 +65,16 @@ internal abstract class Tunnel : IAsyncDisposable
 
     protected Options Options { get; }
 
-    public async Task StartAsync(CancellationToken cancellationToken)
+    public virtual async Task StartAsync(CancellationToken cancellationToken)
     {
+        MappingsSemaphoreSlim = new(1, 1);
+        heartbeatTimer = new(MasterAnnounceInterval);
         Client = new Socket(SocketType.Dgram, ProtocolType.Udp);
 
         await StartHeartbeatAsync(cancellationToken).ConfigureAwait(false);
 
-        using IMemoryOwner<byte> memoryOwner = MemoryPool<byte>.Shared.Rent(1024);
-        Memory<byte> buffer = memoryOwner.Memory[..1024];
+        using IMemoryOwner<byte> memoryOwner = MemoryPool<byte>.Shared.Rent(MaximumPacketSize);
+        Memory<byte> buffer = memoryOwner.Memory[..MaximumPacketSize];
         var remoteEp = new IPEndPoint(IPAddress.Any, 0);
 
         Client.Bind(new IPEndPoint(IPAddress.IPv6Any, GetPort()));
@@ -88,7 +91,16 @@ internal abstract class Tunnel : IAsyncDisposable
                 await Client.ReceiveFromAsync(buffer, SocketFlags.None, remoteEp, cancellationToken)
                     .ConfigureAwait(false);
 
-            if (socketReceiveFromResult.ReceivedBytes >= MinimumPacketSize)
+            if (socketReceiveFromResult.ReceivedBytes < MinimumPacketSize
+                || socketReceiveFromResult.ReceivedBytes > MaximumPacketSize)
+            {
+                if (Logger.IsEnabled(LogLevel.Debug))
+                {
+                    Logger.LogDebug(FormattableString.Invariant($"{DateTimeOffset.Now} V{Version} Tunnel invalid UDP ") +
+                        FormattableString.Invariant($"packet size {socketReceiveFromResult.ReceivedBytes}."));
+                }
+            }
+            else
             {
                 await ReceiveAsync(
                     buffer[..socketReceiveFromResult.ReceivedBytes],
@@ -101,17 +113,17 @@ internal abstract class Tunnel : IAsyncDisposable
     public virtual ValueTask DisposeAsync()
     {
         Client?.Dispose();
-        heartbeatTimer.Dispose();
-        MappingsSemaphoreSlim.Dispose();
+        heartbeatTimer?.Dispose();
+        MappingsSemaphoreSlim?.Dispose();
 
         return ValueTask.CompletedTask;
     }
 
-    protected virtual async Task<int> CleanupConnectionsAsync(CancellationToken cancellationToken)
+    protected virtual async ValueTask<int> CleanupConnectionsAsync(CancellationToken cancellationToken)
     {
         int clients;
 
-        await MappingsSemaphoreSlim.WaitAsync(cancellationToken).ConfigureAwait(false);
+        await MappingsSemaphoreSlim!.WaitAsync(cancellationToken).ConfigureAwait(false);
 
         try
         {
@@ -147,10 +159,10 @@ internal abstract class Tunnel : IAsyncDisposable
     {
     }
 
-    protected abstract Task ReceiveAsync(
+    protected abstract ValueTask ReceiveAsync(
         ReadOnlyMemory<byte> buffer, IPEndPoint remoteEp, CancellationToken cancellationToken);
 
-    protected async Task<bool> HandlePingRequestAsync(
+    protected async ValueTask<bool> HandlePingRequestAsync(
         uint senderId, uint receiverId, ReadOnlyMemory<byte> buffer, IPEndPoint remoteEp, CancellationToken cancellationToken)
     {
         if (senderId != 0 || receiverId != 0)
@@ -211,7 +223,7 @@ internal abstract class Tunnel : IAsyncDisposable
         return false;
     }
 
-    private async Task SendMasterServerHeartbeatAsync(int clients, CancellationToken cancellationToken)
+    private async ValueTask SendMasterServerHeartbeatAsync(int clients, CancellationToken cancellationToken)
     {
         string path = FormattableString.Invariant($"?version={Version}&name={Uri.EscapeDataString(name)}&port={GetPort()}") +
             FormattableString.Invariant($"&clients={clients}&maxclients={MaxClients}") +
@@ -245,7 +257,7 @@ internal abstract class Tunnel : IAsyncDisposable
 
     private Task StartHeartbeatAsync(CancellationToken cancellationToken)
     {
-        heartbeatTimer.Elapsed += (_, _) => SendHeartbeatAsync(cancellationToken);
+        heartbeatTimer!.Elapsed += (_, _) => SendHeartbeatAsync(cancellationToken);
         heartbeatTimer.Enabled = true;
 
         return SendHeartbeatAsync(cancellationToken);
@@ -256,7 +268,11 @@ internal abstract class Tunnel : IAsyncDisposable
         try
         {
             if (cancellationToken.IsCancellationRequested)
-                heartbeatTimer.Enabled = false;
+            {
+                heartbeatTimer!.Enabled = false;
+
+                return;
+            }
 
             int clients = await CleanupConnectionsAsync(cancellationToken).ConfigureAwait(false);
 

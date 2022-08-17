@@ -24,7 +24,7 @@ try
 
     host = Host.CreateDefaultBuilder(args)
         .UseWindowsService(o => o.ServiceName = "CnCNetServer")
-        .ConfigureServices((__, services) =>
+        .ConfigureServices((_, services) =>
         {
             services
                 .AddHostedService<CnCNetBackgroundService>()
@@ -49,9 +49,11 @@ try
                     },
                     ConnectCallback = async (context, token) =>
                     {
-                        AddressFamily adreAddressFamily = options.AnnounceIpV6 ? AddressFamily.InterNetworkV6 : AddressFamily.InterNetwork;
-                        var socket = new Socket(adreAddressFamily, SocketType.Stream, ProtocolType.Tcp);
-                        socket.NoDelay = true;
+                        AddressFamily addressFamily = options.AnnounceIpV6 ? AddressFamily.InterNetworkV6 : AddressFamily.InterNetwork;
+                        var socket = new Socket(addressFamily, SocketType.Stream, ProtocolType.Tcp)
+                        {
+                            NoDelay = true
+                        };
 
                         try
                         {

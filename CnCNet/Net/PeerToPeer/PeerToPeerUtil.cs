@@ -5,7 +5,7 @@ using System.Net;
 using System.Net.Sockets;
 using Microsoft.Extensions.Logging;
 
-internal sealed class PeerToPeerUtil : IDisposable
+internal sealed class PeerToPeerUtil : IAsyncDisposable
 {
     private const int CounterResetInterval = 60 * 1000; // Reset counter every X ms
     private const int MaxRequestsPerIp = 20; // Max requests during one CounterResetInterval period
@@ -37,11 +37,13 @@ internal sealed class PeerToPeerUtil : IDisposable
         return StartReceiverAsync(listenPort, cancellationToken);
     }
 
-    public void Dispose()
+    public ValueTask DisposeAsync()
     {
         connectionCounterSemaphoreSlim.Dispose();
         connectionCounterTimer.Dispose();
         memoryOwner.Dispose();
+
+        return ValueTask.CompletedTask;
     }
 
     private static bool IsInvalidRemoteIpEndPoint(IPEndPoint remoteEp)
@@ -97,7 +99,7 @@ internal sealed class PeerToPeerUtil : IDisposable
         }
     }
 
-    private async Task ReceiveAsync(
+    private async ValueTask ReceiveAsync(
         Socket client, ReadOnlyMemory<byte> buffer, IPEndPoint remoteEp, CancellationToken cancellationToken)
     {
         if (IsInvalidRemoteIpEndPoint(remoteEp)
@@ -119,7 +121,7 @@ internal sealed class PeerToPeerUtil : IDisposable
         await client.SendToAsync(sendBuffer, SocketFlags.None, remoteEp, cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task<bool> IsConnectionLimitReachedAsync(IPAddress address, CancellationToken cancellationToken)
+    private async ValueTask<bool> IsConnectionLimitReachedAsync(IPAddress address, CancellationToken cancellationToken)
     {
         await connectionCounterSemaphoreSlim.WaitAsync(cancellationToken).ConfigureAwait(false);
 

@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 internal sealed class TunnelV2 : Tunnel
@@ -16,18 +17,12 @@ internal sealed class TunnelV2 : Tunnel
     private const int MinGameClients = 2;
     private const int MaxGameClients = 8;
 
-    private readonly SemaphoreSlim connectionCounterSemaphoreSlim = new(1, 1);
-    private readonly WebApplication app;
+    private SemaphoreSlim? connectionCounterSemaphoreSlim;
+    private WebApplication? app;
 
     public TunnelV2(ILogger<TunnelV2> logger, Options options, IHttpClientFactory httpClientFactory)
         : base(logger, options, httpClientFactory)
     {
-        WebApplicationBuilder builder = WebApplication.CreateBuilder();
-
-        builder.Logging.ConfigureLogging(options);
-        builder.WebHost.UseUrls(FormattableString.Invariant($"http://*:{options.TunnelV2Port}"));
-
-        app = builder.Build();
     }
 
     protected override int Version => 2;
@@ -40,8 +35,15 @@ internal sealed class TunnelV2 : Tunnel
 
     protected override int MinimumPacketSize => 4;
 
-    public Task StartHttpServerAsync()
+    public Task StartHttpServerAsync(CancellationToken cancellationToken)
     {
+        WebApplicationBuilder builder = WebApplication.CreateBuilder();
+
+        builder.Logging.ConfigureLogging(Options);
+        builder.WebHost.UseUrls(FormattableString.Invariant($"http://*:{Options.TunnelV2Port}"));
+
+        app = builder.Build();
+
         app.MapGet("/maintenance", HandleMaintenanceRequest);
         app.MapGet("/maintenance/{requestMaintenancePassword}", HandleMaintenanceRequest);
         app.MapGet("/status", HandleStatusRequest);
@@ -53,22 +55,29 @@ internal sealed class TunnelV2 : Tunnel
                 $"{DateTimeOffset.Now} V{Version} Tunnel HTTP server started on port {Options.TunnelV2Port}."));
         }
 
-        return app.RunAsync();
+        return app.RunAsync(cancellationToken);
+    }
+
+    public override Task StartAsync(CancellationToken cancellationToken)
+    {
+        connectionCounterSemaphoreSlim = new(1, 1);
+
+        return base.StartAsync(cancellationToken);
     }
 
     public override async ValueTask DisposeAsync()
     {
         await base.DisposeAsync().ConfigureAwait(false);
-        connectionCounterSemaphoreSlim.Dispose();
+        connectionCounterSemaphoreSlim?.Dispose();
 
-        await app.StopAsync(CancellationToken.None).ConfigureAwait(false);
+        await app!.StopAsync(CancellationToken.None).ConfigureAwait(false);
     }
 
-    protected override async Task<int> CleanupConnectionsAsync(CancellationToken cancellationToken)
+    protected override async ValueTask<int> CleanupConnectionsAsync(CancellationToken cancellationToken)
     {
         int clients = await base.CleanupConnectionsAsync(cancellationToken).ConfigureAwait(false);
 
-        await connectionCounterSemaphoreSlim.WaitAsync(cancellationToken).ConfigureAwait(false);
+        await connectionCounterSemaphoreSlim!.WaitAsync(cancellationToken).ConfigureAwait(false);
 
         try
         {
@@ -82,7 +91,7 @@ internal sealed class TunnelV2 : Tunnel
         return clients;
     }
 
-    protected override async Task ReceiveAsync(
+    protected override async ValueTask ReceiveAsync(
         ReadOnlyMemory<byte> buffer, IPEndPoint remoteEp, CancellationToken cancellationToken)
     {
         uint senderId = (uint)IPAddress.NetworkToHostOrder(BitConverter.ToInt16(buffer[..2].Span));
@@ -107,7 +116,7 @@ internal sealed class TunnelV2 : Tunnel
             return;
         }
 
-        await MappingsSemaphoreSlim.WaitAsync(cancellationToken).ConfigureAwait(false);
+        await MappingsSemaphoreSlim!.WaitAsync(cancellationToken).ConfigureAwait(false);
 
         try
         {
@@ -185,7 +194,7 @@ internal sealed class TunnelV2 : Tunnel
         }
     }
 
-    private async Task<IResult> HandleMaintenanceRequest(
+    private async ValueTask<IResult> HandleMaintenanceRequest(
         HttpRequest request, CancellationToken cancellationToken, string? requestMaintenancePassword = null)
     {
         if (!await IsNewConnectionAllowedAsync(request.HttpContext.Connection.RemoteIpAddress!, cancellationToken)
@@ -217,7 +226,7 @@ internal sealed class TunnelV2 : Tunnel
         return Results.Unauthorized();
     }
 
-    private async Task<IResult> HandleStatusRequest(HttpRequest request, CancellationToken cancellationToken)
+    private async ValueTask<IResult> HandleStatusRequest(HttpRequest request, CancellationToken cancellationToken)
     {
         if (!await IsNewConnectionAllowedAsync(request.HttpContext.Connection.RemoteIpAddress!, cancellationToken)
             .ConfigureAwait(false))
@@ -227,7 +236,7 @@ internal sealed class TunnelV2 : Tunnel
 
         string status;
 
-        await MappingsSemaphoreSlim.WaitAsync(cancellationToken).ConfigureAwait(false);
+        await MappingsSemaphoreSlim!.WaitAsync(cancellationToken).ConfigureAwait(false);
 
         try
         {
@@ -242,7 +251,7 @@ internal sealed class TunnelV2 : Tunnel
         return Results.Text(status);
     }
 
-    private async Task<IResult> HandleRequestRequest(
+    private async ValueTask<IResult> HandleRequestRequest(
         HttpRequest request, int? clients, CancellationToken cancellationToken)
     {
         if (MaintenanceModeEnabled)
@@ -253,7 +262,7 @@ internal sealed class TunnelV2 : Tunnel
 
         var clientIds = new List<int>(clients.Value);
 
-        await MappingsSemaphoreSlim.WaitAsync(cancellationToken).ConfigureAwait(false);
+        await MappingsSemaphoreSlim!.WaitAsync(cancellationToken).ConfigureAwait(false);
 
         try
         {
@@ -309,9 +318,9 @@ internal sealed class TunnelV2 : Tunnel
         return Results.Text(msg);
     }
 
-    private async Task<bool> IsNewConnectionAllowedAsync(IPAddress address, CancellationToken cancellationToken)
+    private async ValueTask<bool> IsNewConnectionAllowedAsync(IPAddress address, CancellationToken cancellationToken)
     {
-        await connectionCounterSemaphoreSlim.WaitAsync(cancellationToken).ConfigureAwait(false);
+        await connectionCounterSemaphoreSlim!.WaitAsync(cancellationToken).ConfigureAwait(false);
 
         try
         {

@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 
 internal static partial class LoggerExtensions
 {
-    public static async Task LogExceptionDetailsAsync(this ILogger logger, Exception exception, HttpResponseMessage? httpResponseMessage = null)
+    public static async ValueTask LogExceptionDetailsAsync(this ILogger logger, Exception exception, HttpResponseMessage? httpResponseMessage = null)
     {
         logger.LogExceptionDetails(exception);
 

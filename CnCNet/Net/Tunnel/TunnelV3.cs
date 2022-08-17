@@ -11,8 +11,9 @@ internal sealed class TunnelV3 : Tunnel
 {
     private const int TunnelCommandRequestPacketSize = 8 + 1 + 20; // 8=receiver+sender ids, 1=command, 20=sha1 pass
 
-    private readonly SemaphoreSlim clientsSemaphoreSlim = new(1, 1);
     private readonly byte[]? maintenancePasswordSha1;
+
+    private SemaphoreSlim? clientsSemaphoreSlim;
     private long lastCommandTick;
 
     public TunnelV3(ILogger<TunnelV3> logger, Options options, IHttpClientFactory httpClientFactory)
@@ -39,10 +40,17 @@ internal sealed class TunnelV3 : Tunnel
         MaintenanceMode
     }
 
+    public override Task StartAsync(CancellationToken cancellationToken)
+    {
+        clientsSemaphoreSlim = new(1, 1);
+
+        return base.StartAsync(cancellationToken);
+    }
+
     public override async ValueTask DisposeAsync()
     {
         await base.DisposeAsync().ConfigureAwait(false);
-        clientsSemaphoreSlim.Dispose();
+        clientsSemaphoreSlim?.Dispose();
     }
 
     protected override void CleanupConnection(TunnelClient tunnelClient)
@@ -53,7 +61,7 @@ internal sealed class TunnelV3 : Tunnel
             ConnectionCounter.Remove(ipHash);
     }
 
-    protected override async Task ReceiveAsync(
+    protected override async ValueTask ReceiveAsync(
         ReadOnlyMemory<byte> buffer, IPEndPoint remoteEp, CancellationToken cancellationToken)
     {
         uint senderId = BitConverter.ToUInt32(buffer[..4].Span);
@@ -88,7 +96,7 @@ internal sealed class TunnelV3 : Tunnel
             return;
         }
 
-        await clientsSemaphoreSlim.WaitAsync(cancellationToken).ConfigureAwait(false);
+        await clientsSemaphoreSlim!.WaitAsync(cancellationToken).ConfigureAwait(false);
 
         try
         {

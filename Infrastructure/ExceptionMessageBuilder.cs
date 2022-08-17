@@ -13,7 +13,7 @@ internal static class ExceptionMessageBuilder
     public static string GetDetailedExceptionInfo(this Exception ex)
         => new StringBuilder().GetExceptionInfo(ex).ToString();
 
-    public static async Task<string> GetHttpResponseMessageInfoAsync(this HttpResponseMessage httpResponseMessage)
+    public static async ValueTask<string> GetHttpResponseMessageInfoAsync(this HttpResponseMessage httpResponseMessage)
     {
         string content = await httpResponseMessage.Content.ReadAsStringAsync().ConfigureAwait(false);
 
