@@ -32,6 +32,8 @@ internal sealed class TunnelV3 : Tunnel
 
     protected override int Port => Options.TunnelPort;
 
+    protected override int MinimumPacketSize => 8;
+
     private enum TunnelCommand : byte
     {
         MaintenanceMode

@@ -38,6 +38,8 @@ internal sealed class TunnelV2 : Tunnel
 
     protected override int Port => Options.TunnelV2Port;
 
+    protected override int MinimumPacketSize => 4;
+
     public Task StartHttpServerAsync()
     {
         app.MapGet("/maintenance", HandleMaintenanceRequest);

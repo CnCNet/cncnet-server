@@ -48,6 +48,8 @@ internal abstract class Tunnel : IAsyncDisposable
 
     protected abstract int DefaultIpLimit { get; }
 
+    protected abstract int MinimumPacketSize { get; }
+
     protected bool MaintenanceModeEnabled { get; set; }
 
     protected Dictionary<int, int> ConnectionCounter { get; }
@@ -86,7 +88,7 @@ internal abstract class Tunnel : IAsyncDisposable
                 await Client.ReceiveFromAsync(buffer, SocketFlags.None, remoteEp, cancellationToken)
                     .ConfigureAwait(false);
 
-            if (socketReceiveFromResult.ReceivedBytes >= 8)
+            if (socketReceiveFromResult.ReceivedBytes >= MinimumPacketSize)
             {
                 await ReceiveAsync(
                     buffer[..socketReceiveFromResult.ReceivedBytes],
