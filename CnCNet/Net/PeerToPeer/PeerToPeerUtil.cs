@@ -10,7 +10,7 @@ internal sealed class PeerToPeerUtil : IAsyncDisposable
     private const int CounterResetInterval = 60 * 1000; // Reset counter every X ms
     private const int MaxRequestsPerIp = 20; // Max requests during one CounterResetInterval period
     private const int MaxConnectionsGlobal = 5000; // Max amount of different ips sending requests during one CounterResetInterval period
-    private const int StunId = 26262;
+    private const short StunId = 26262;
 
     private readonly Dictionary<int, int> connectionCounter = new(MaxConnectionsGlobal);
     private readonly System.Timers.Timer connectionCounterTimer = new(CounterResetInterval);
@@ -26,7 +26,7 @@ internal sealed class PeerToPeerUtil : IAsyncDisposable
         sendBuffer = memoryOwner.Memory[..40];
 
         new Random().NextBytes(sendBuffer.Span);
-        BitConverter.GetBytes(IPAddress.HostToNetworkOrder((short)StunId)).AsSpan(..2).CopyTo(sendBuffer.Span[6..8]);
+        BitConverter.GetBytes(IPAddress.HostToNetworkOrder(StunId)).AsSpan(..2).CopyTo(sendBuffer.Span[6..8]);
     }
 
     public Task StartAsync(int listenPort, CancellationToken cancellationToken)
@@ -95,7 +95,10 @@ internal sealed class PeerToPeerUtil : IAsyncDisposable
                 buffer, SocketFlags.None, remoteEp, cancellationToken).ConfigureAwait(false);
 
             if (socketReceiveFromResult.ReceivedBytes == 48)
-                await ReceiveAsync(client, buffer, remoteEp, cancellationToken).ConfigureAwait(false);
+            {
+                await ReceiveAsync(client, buffer, (IPEndPoint)socketReceiveFromResult.RemoteEndPoint, cancellationToken)
+                    .ConfigureAwait(false);
+            }
         }
     }
 

@@ -5,6 +5,9 @@ using Microsoft.Extensions.Logging;
 
 internal sealed class CnCNetBackgroundService : BackgroundService
 {
+    private const int STUN_PORT1 = 3478;
+    private const int STUN_PORT2 = 8054;
+
     private readonly ILogger logger;
     private readonly Options options;
     private readonly TunnelV3 tunnelV3;
@@ -79,8 +82,8 @@ internal sealed class CnCNetBackgroundService : BackgroundService
 
         if (!options.NoPeerToPeer)
         {
-            tasks.Add(CreateLongRunningTask(() => peerToPeerUtil1.StartAsync(8054, stoppingToken), peerToPeerUtil1, stoppingToken));
-            tasks.Add(CreateLongRunningTask(() => peerToPeerUtil2.StartAsync(3478, stoppingToken), peerToPeerUtil2, stoppingToken));
+            tasks.Add(CreateLongRunningTask(() => peerToPeerUtil1.StartAsync(STUN_PORT1, stoppingToken), peerToPeerUtil1, stoppingToken));
+            tasks.Add(CreateLongRunningTask(() => peerToPeerUtil2.StartAsync(STUN_PORT2, stoppingToken), peerToPeerUtil2, stoppingToken));
         }
 
         return WhenAllSafe(tasks);
