@@ -24,6 +24,7 @@ try
 
     host = Host.CreateDefaultBuilder(args)
         .UseWindowsService(o => o.ServiceName = "CnCNetServer")
+        .UseSystemd()
         .ConfigureServices((_, services) =>
         {
             services
