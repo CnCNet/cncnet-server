@@ -1,7 +1,5 @@
 ﻿using System.Net;
-using System.Net.Security;
 using System.Net.Sockets;
-using System.Security.Authentication;
 using CnCNetServer;
 using CommandLine;
 using CommandLine.Text;
@@ -36,18 +34,13 @@ try
                 .AddHttpClient(nameof(Tunnel))
                 .ConfigureHttpClient((_, httpClient) =>
                 {
-                    httpClient.BaseAddress = new Uri(options.MasterServerUrl!);
+                    httpClient.BaseAddress = new Uri(options.MasterServerUrl);
                     httpClient.Timeout = TimeSpan.FromMilliseconds(10000);
-                    httpClient.DefaultRequestVersion = HttpVersion.Version11;
                     httpClient.DefaultVersionPolicy = HttpVersionPolicy.RequestVersionOrHigher;
                 })
                 .ConfigurePrimaryHttpMessageHandler(_ => new SocketsHttpHandler
                 {
                     AutomaticDecompression = DecompressionMethods.All,
-                    SslOptions = new SslClientAuthenticationOptions
-                    {
-                        EnabledSslProtocols = SslProtocols.Tls13 | SslProtocols.Tls12
-                    },
                     ConnectCallback = async (context, token) =>
                     {
                         AddressFamily addressFamily = options.AnnounceIpV6 ? AddressFamily.InterNetworkV6 : AddressFamily.InterNetwork;

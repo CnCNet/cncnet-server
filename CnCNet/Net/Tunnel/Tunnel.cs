@@ -35,7 +35,7 @@ internal abstract class Tunnel : IAsyncDisposable
         this.httpClientFactory = httpClientFactory;
         Options = options;
         Logger = logger;
-        name = options.Name!.Any() ? options.Name!.Replace(";", string.Empty) : "Unnamed server";
+        name = options.Name.Any() ? options.Name.Replace(";", string.Empty) : "Unnamed server";
         MaxClients = options.MaxClients < MinMaxClients ? DefaultMaxClients : options.MaxClients;
         Mappings = new Dictionary<uint, TunnelClient>(MaxClients);
         ConnectionCounter = new Dictionary<int, int>(MaxClients);
