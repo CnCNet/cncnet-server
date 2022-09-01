@@ -1,9 +1,6 @@
 ﻿namespace CnCNetServer;
 
 using System.Buffers;
-using System.Net;
-using System.Net.Sockets;
-using Microsoft.Extensions.Logging;
 
 internal abstract class Tunnel : IAsyncDisposable
 {
@@ -12,64 +9,50 @@ internal abstract class Tunnel : IAsyncDisposable
     private const int MasterAnnounceInterval = 60 * 1000;
     private const int MaxPingsPerIp = 20;
     private const int MaxPingsGlobal = 5000;
-    private const int MinMaxClients = 2;
-    private const int DefaultMaxClients = 200;
-    private const int MinPort = 1024;
-    private const int MinIpLimit = 1;
     private const int PingRequestPacketSize = 50;
     private const int PingResponsePacketSize = 12;
     private const int MaximumPacketSize = 128;
 
     protected SemaphoreSlim? MappingsSemaphoreSlim;
 
-    private readonly string name;
-    private readonly Dictionary<int, int> pingCounter = new(MaxPingsGlobal);
     private readonly IHttpClientFactory httpClientFactory;
 
     private System.Timers.Timer? heartbeatTimer;
-    private int? port;
-    private int? ipLimit;
+    private Dictionary<int, int>? pingCounter;
 
-    protected Tunnel(ILogger logger, Options options, IHttpClientFactory httpClientFactory)
+    protected Tunnel(ILogger logger, IOptions<ServiceOptions> options, IHttpClientFactory httpClientFactory)
     {
         this.httpClientFactory = httpClientFactory;
         Options = options;
         Logger = logger;
-        name = options.Name.Any() ? options.Name.Replace(";", string.Empty) : "Unnamed server";
-        MaxClients = options.MaxClients < MinMaxClients ? DefaultMaxClients : options.MaxClients;
-        Mappings = new Dictionary<uint, TunnelClient>(MaxClients);
-        ConnectionCounter = new Dictionary<int, int>(MaxClients);
     }
 
     protected abstract int Version { get; }
 
-    protected abstract int DefaultPort { get; }
-
     protected abstract int Port { get; }
-
-    protected abstract int DefaultIpLimit { get; }
 
     protected abstract int MinimumPacketSize { get; }
 
+    protected ILogger Logger { get; }
+
+    protected IOptions<ServiceOptions> Options { get; }
+
     protected bool MaintenanceModeEnabled { get; set; }
 
-    protected Dictionary<int, int> ConnectionCounter { get; }
+    protected Dictionary<int, int>? ConnectionCounter { get; private set; }
 
-    protected Dictionary<uint, TunnelClient> Mappings { get; }
-
-    protected ILogger Logger { get; }
+    protected Dictionary<uint, TunnelClient>? Mappings { get; private set; }
 
     protected Socket? Client { get; private set; }
 
-    protected int MaxClients { get; }
-
-    protected Options Options { get; }
-
     public virtual async Task StartAsync(CancellationToken cancellationToken)
     {
+        Mappings = new(Options.Value.MaxClients);
+        ConnectionCounter = new(Options.Value.MaxClients);
         MappingsSemaphoreSlim = new(1, 1);
+        Client = new(SocketType.Dgram, ProtocolType.Udp);
         heartbeatTimer = new(MasterAnnounceInterval);
-        Client = new Socket(SocketType.Dgram, ProtocolType.Udp);
+        pingCounter = new(MaxPingsGlobal);
 
         await StartHeartbeatAsync(cancellationToken).ConfigureAwait(false);
 
@@ -77,12 +60,12 @@ internal abstract class Tunnel : IAsyncDisposable
         Memory<byte> buffer = memoryOwner.Memory[..MaximumPacketSize];
         var remoteEp = new IPEndPoint(IPAddress.Any, 0);
 
-        Client.Bind(new IPEndPoint(IPAddress.IPv6Any, GetPort()));
+        Client.Bind(new IPEndPoint(IPAddress.IPv6Any, Port));
 
         if (Logger.IsEnabled(LogLevel.Information))
         {
             Logger.LogInfo(FormattableString.Invariant(
-                $"{DateTimeOffset.Now} V{Version} Tunnel UDP server started on port {GetPort()}."));
+                $"{DateTimeOffset.Now} V{Version} Tunnel UDP server started on port {Port}."));
         }
 
         while (!cancellationToken.IsCancellationRequested)
@@ -127,11 +110,11 @@ internal abstract class Tunnel : IAsyncDisposable
 
         try
         {
-            foreach (KeyValuePair<uint, TunnelClient> mapping in Mappings.Where(x => x.Value.TimedOut).ToList())
+            foreach (KeyValuePair<uint, TunnelClient> mapping in Mappings!.Where(x => x.Value.TimedOut).ToList())
             {
                 CleanupConnection(mapping.Value);
 
-                Mappings.Remove(mapping.Key);
+                Mappings!.Remove(mapping.Key);
 
                 if (Logger.IsEnabled(LogLevel.Information))
                 {
@@ -143,9 +126,9 @@ internal abstract class Tunnel : IAsyncDisposable
                 }
             }
 
-            clients = Mappings.Count;
+            clients = Mappings!.Count;
 
-            pingCounter.Clear();
+            pingCounter!.Clear();
         }
         finally
         {
@@ -176,7 +159,7 @@ internal abstract class Tunnel : IAsyncDisposable
                 {
                     Logger.LogDebug(
                         FormattableString.Invariant($"V{Version} client {remoteEp} replying to ping ") +
-                        FormattableString.Invariant($"({pingCounter.Count}/{MaxPingsGlobal}):") +
+                        FormattableString.Invariant($"({pingCounter!.Count}/{MaxPingsGlobal}):") +
                         FormattableString.Invariant($" {Convert.ToHexString(buffer.Span[..PingResponsePacketSize])}."));
                 }
 
@@ -205,12 +188,9 @@ internal abstract class Tunnel : IAsyncDisposable
         return false;
     }
 
-    protected int GetIpLimit()
-        => ipLimit ??= Options.IpLimit < MinIpLimit ? DefaultIpLimit : Options.IpLimit;
-
     private bool IsPingLimitReached(IPAddress address)
     {
-        if (pingCounter.Count >= MaxPingsGlobal)
+        if (pingCounter!.Count >= MaxPingsGlobal)
             return true;
 
         int ipHash = address.GetHashCode();
@@ -225,9 +205,9 @@ internal abstract class Tunnel : IAsyncDisposable
 
     private async ValueTask SendMasterServerHeartbeatAsync(int clients, CancellationToken cancellationToken)
     {
-        string path = FormattableString.Invariant($"?version={Version}&name={Uri.EscapeDataString(name)}&port={GetPort()}") +
-            FormattableString.Invariant($"&clients={clients}&maxclients={MaxClients}") +
-            FormattableString.Invariant($"&masterpw={Uri.EscapeDataString(Options.MasterPassword!)}") +
+        string path = FormattableString.Invariant($"?version={Version}&name={Uri.EscapeDataString(Options.Value.Name!)}") +
+            FormattableString.Invariant($"&port={Port}&clients={clients}&maxclients={Options.Value.MaxClients}") +
+            FormattableString.Invariant($"&masterpw={Uri.EscapeDataString(Options.Value.MasterPassword ?? string.Empty)}") +
             FormattableString.Invariant($"&maintenance={(MaintenanceModeEnabled ? 1 : 0)}");
         HttpResponseMessage? httpResponseMessage = null;
 
@@ -276,17 +256,12 @@ internal abstract class Tunnel : IAsyncDisposable
 
             int clients = await CleanupConnectionsAsync(cancellationToken).ConfigureAwait(false);
 
-            if (!Options.NoMasterAnnounce)
+            if (!Options.Value.NoMasterAnnounce)
                 await SendMasterServerHeartbeatAsync(clients, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             await Logger.LogExceptionDetailsAsync(ex).ConfigureAwait(false);
         }
-    }
-
-    private int GetPort()
-    {
-        return port ??= Port <= MinPort ? DefaultPort : Port;
     }
 }

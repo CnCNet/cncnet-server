@@ -1,15 +1,8 @@
 ﻿namespace CnCNetServer;
 
-using System;
-using System.Collections.Generic;
-using System.Net;
-using System.Net.Sockets;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 
 internal sealed class TunnelV2 : Tunnel
 {
@@ -18,20 +11,15 @@ internal sealed class TunnelV2 : Tunnel
     private const int MaxGameClients = 8;
 
     private SemaphoreSlim? connectionCounterSemaphoreSlim;
-    private WebApplication? app;
 
-    public TunnelV2(ILogger<TunnelV2> logger, Options options, IHttpClientFactory httpClientFactory)
+    public TunnelV2(ILogger<TunnelV2> logger, IOptions<ServiceOptions> options, IHttpClientFactory httpClientFactory)
         : base(logger, options, httpClientFactory)
     {
     }
 
     protected override int Version => 2;
 
-    protected override int DefaultPort => 50000;
-
-    protected override int DefaultIpLimit => 4;
-
-    protected override int Port => Options.TunnelV2Port;
+    protected override int Port => Options.Value.TunnelV2Port;
 
     protected override int MinimumPacketSize => 4;
 
@@ -39,10 +27,10 @@ internal sealed class TunnelV2 : Tunnel
     {
         WebApplicationBuilder builder = WebApplication.CreateBuilder();
 
-        builder.Logging.ConfigureLogging(Options);
-        builder.WebHost.UseUrls(FormattableString.Invariant($"http://*:{Options.TunnelV2Port}"));
+        builder.Logging.ConfigureLogging(Options.Value.ServerLogLevel, Options.Value.SystemLogLevel);
+        builder.WebHost.UseUrls(FormattableString.Invariant($"http://*:{Options.Value.TunnelV2Port}"));
 
-        app = builder.Build();
+        WebApplication app = builder.Build();
 
         app.MapGet("/maintenance", HandleMaintenanceRequest);
         app.MapGet("/maintenance/{requestMaintenancePassword}", HandleMaintenanceRequest);
@@ -52,7 +40,7 @@ internal sealed class TunnelV2 : Tunnel
         if (Logger.IsEnabled(LogLevel.Information))
         {
             Logger.LogInfo(FormattableString.Invariant(
-                $"{DateTimeOffset.Now} V{Version} Tunnel HTTP server started on port {Options.TunnelV2Port}."));
+                $"{DateTimeOffset.Now} V{Version} Tunnel HTTP server started on port {Options.Value.TunnelV2Port}."));
         }
 
         return app.RunAsync(cancellationToken);
@@ -69,8 +57,6 @@ internal sealed class TunnelV2 : Tunnel
     {
         await base.DisposeAsync().ConfigureAwait(false);
         connectionCounterSemaphoreSlim?.Dispose();
-
-        await app!.StopAsync(CancellationToken.None).ConfigureAwait(false);
     }
 
     protected override async ValueTask<int> CleanupConnectionsAsync(CancellationToken cancellationToken)
@@ -81,7 +67,7 @@ internal sealed class TunnelV2 : Tunnel
 
         try
         {
-            ConnectionCounter.Clear();
+            ConnectionCounter!.Clear();
         }
         finally
         {
@@ -123,11 +109,11 @@ internal sealed class TunnelV2 : Tunnel
             if (await HandlePingRequestAsync(senderId, receiverId, buffer, remoteEp, cancellationToken).ConfigureAwait(false))
                 return;
 
-            if (Mappings.TryGetValue(senderId, out TunnelClient? sender))
+            if (Mappings!.TryGetValue(senderId, out TunnelClient? sender))
             {
                 if (sender.RemoteEp == null)
                 {
-                    sender.RemoteEp = new IPEndPoint(remoteEp.Address, remoteEp.Port);
+                    sender.RemoteEp = new(remoteEp.Address, remoteEp.Port);
 
                     if (Logger.IsEnabled(LogLevel.Information))
                     {
@@ -203,8 +189,8 @@ internal sealed class TunnelV2 : Tunnel
             return Results.StatusCode((int)HttpStatusCode.TooManyRequests);
         }
 
-        if (Options.MaintenancePassword!.Any()
-            && Options.MaintenancePassword!.Equals(requestMaintenancePassword, StringComparison.Ordinal))
+        if (Options.Value.MaintenancePassword!.Any()
+            && Options.Value.MaintenancePassword!.Equals(requestMaintenancePassword, StringComparison.Ordinal))
         {
             MaintenanceModeEnabled = true;
 
@@ -240,7 +226,7 @@ internal sealed class TunnelV2 : Tunnel
 
         try
         {
-            status = FormattableString.Invariant($"{MaxClients - Mappings.Count} slots free.") +
+            status = FormattableString.Invariant($"{Options.Value.MaxClients - Mappings!.Count} slots free.") +
                 FormattableString.Invariant($"\n{Mappings.Count} slots in use.\n");
         }
         finally
@@ -266,7 +252,7 @@ internal sealed class TunnelV2 : Tunnel
 
         try
         {
-            if (Mappings.Count + clients <= MaxClients)
+            if (Mappings!.Count + clients <= Options.Value.MaxClients)
             {
                 if (Logger.IsEnabled(LogLevel.Information))
                 {
@@ -288,7 +274,7 @@ internal sealed class TunnelV2 : Tunnel
                     {
                         clients--;
 
-                        Mappings.Add((uint)clientId, new TunnelClient());
+                        Mappings.Add((uint)clientId, new());
 
                         clientIds.Add(clientId);
                     }
@@ -324,12 +310,12 @@ internal sealed class TunnelV2 : Tunnel
 
         try
         {
-            if (ConnectionCounter.Count >= MaxRequestsGlobal)
+            if (ConnectionCounter!.Count >= MaxRequestsGlobal)
                 return false;
 
             int ipHash = address.GetHashCode();
 
-            if (ConnectionCounter.TryGetValue(ipHash, out int count) && count >= GetIpLimit())
+            if (ConnectionCounter.TryGetValue(ipHash, out int count) && count >= Options.Value.IpLimit)
                 return false;
 
             ConnectionCounter[ipHash] = ++count;

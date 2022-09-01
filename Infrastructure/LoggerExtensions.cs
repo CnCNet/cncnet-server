@@ -1,10 +1,5 @@
 ﻿namespace CnCNetServer;
 
-using System;
-using System.Net.Http;
-using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
-
 internal static partial class LoggerExtensions
 {
     public static async ValueTask LogExceptionDetailsAsync(this ILogger logger, Exception exception, HttpResponseMessage? httpResponseMessage = null)
@@ -18,11 +13,11 @@ internal static partial class LoggerExtensions
     public static void LogExceptionDetails(this ILogger logger, Exception exception)
         => logger.LogException(exception.GetDetailedExceptionInfo());
 
-    public static void ConfigureLogging(this ILoggingBuilder loggingBuilder, Options options)
+    public static void ConfigureLogging(this ILoggingBuilder loggingBuilder, LogLevel serverLogLevel, LogLevel systemLogLevel)
     {
         loggingBuilder
-            .SetMinimumLevel(options.SystemLogLevel)
-            .AddFilter(nameof(CnCNetServer), options.ServerLogLevel);
+            .SetMinimumLevel(systemLogLevel)
+            .AddFilter(nameof(CnCNetServer), serverLogLevel);
     }
 
     [LoggerMessage(EventId = 3, Level = LogLevel.Debug, Message = "{message}")]

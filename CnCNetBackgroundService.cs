@@ -1,22 +1,25 @@
 ﻿namespace CnCNetServer;
 
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
+using System.CommandLine.Parsing;
 
 internal sealed class CnCNetBackgroundService : BackgroundService
 {
-    private const int STUN_PORT1 = 3478;
-    private const int STUN_PORT2 = 8054;
+    private const int StunPort1 = 3478;
+    private const int StunPort2 = 8054;
 
     private readonly ILogger logger;
-    private readonly Options options;
+    private readonly IOptions<ServiceOptions> options;
     private readonly TunnelV3 tunnelV3;
     private readonly TunnelV2 tunnelV2;
     private readonly PeerToPeerUtil peerToPeerUtil1;
     private readonly PeerToPeerUtil peerToPeerUtil2;
+    private readonly ParseResult parseResult;
 
-    public CnCNetBackgroundService(ILogger<CnCNetBackgroundService> logger, Options options, TunnelV3 tunnelV3,
-        TunnelV2 tunnelV2, PeerToPeerUtil peerToPeerUtil1, PeerToPeerUtil peerToPeerUtil2)
+    private bool started;
+    private bool stopping;
+
+    public CnCNetBackgroundService(ILogger<CnCNetBackgroundService> logger, IOptions<ServiceOptions> options, TunnelV3 tunnelV3,
+        TunnelV2 tunnelV2, PeerToPeerUtil peerToPeerUtil1, PeerToPeerUtil peerToPeerUtil2, ParseResult parseResult)
     {
         this.logger = logger;
         this.options = options;
@@ -24,12 +27,16 @@ internal sealed class CnCNetBackgroundService : BackgroundService
         this.tunnelV2 = tunnelV2;
         this.peerToPeerUtil1 = peerToPeerUtil1;
         this.peerToPeerUtil2 = peerToPeerUtil2;
+        this.parseResult = parseResult;
     }
 
     public override async Task StartAsync(CancellationToken cancellationToken)
     {
+        if (parseResult.Errors.Any())
+            return;
+
         if (logger.IsEnabled(LogLevel.Information))
-            logger.LogInfo(FormattableString.Invariant($"{DateTimeOffset.Now} Server {options.Name} starting."));
+            logger.LogInfo(FormattableString.Invariant($"{DateTimeOffset.Now} Server {options.Value.Name} starting."));
 
         try
         {
@@ -42,17 +49,24 @@ internal sealed class CnCNetBackgroundService : BackgroundService
         }
 
         if (logger.IsEnabled(LogLevel.Information))
-            logger.LogInfo(FormattableString.Invariant($"{DateTimeOffset.Now} Server {options.Name} started."));
+            logger.LogInfo(FormattableString.Invariant($"{DateTimeOffset.Now} Server {options.Value.Name} started."));
+
+        started = true;
     }
 
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
+        if (stopping || !started)
+            return;
+
+        stopping = true;
+
         if (logger.IsEnabled(LogLevel.Information))
-            logger.LogInfo(FormattableString.Invariant($"{DateTimeOffset.Now} Server {options.Name} stopping."));
+            logger.LogInfo(FormattableString.Invariant($"{DateTimeOffset.Now} Server {options.Value.Name} stopping."));
 
         try
         {
-            await base.StopAsync(CancellationToken.None).ConfigureAwait(false);
+            await base.StopAsync(cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -61,29 +75,29 @@ internal sealed class CnCNetBackgroundService : BackgroundService
         }
 
         if (logger.IsEnabled(LogLevel.Information))
-            logger.LogInfo(FormattableString.Invariant($"{DateTimeOffset.Now} Server {options.Name} stopped."));
+            logger.LogInfo(FormattableString.Invariant($"{DateTimeOffset.Now} Server {options.Value.Name} stopped."));
     }
 
     protected override Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (!options.TunnelV3Enabled && !options.TunnelV2Enabled && options.NoPeerToPeer)
+        if (!options.Value.TunnelV3Enabled && !options.Value.TunnelV2Enabled && options.Value.NoPeerToPeer)
             throw new ConfigurationException("No tunnel or peer to peer enabled.");
 
         var tasks = new List<Task>();
 
-        if (options.TunnelV3Enabled)
+        if (options.Value.TunnelV3Enabled)
             tasks.Add(CreateLongRunningTask(() => tunnelV3.StartAsync(stoppingToken), tunnelV3, stoppingToken));
 
-        if (options.TunnelV2Enabled)
+        if (options.Value.TunnelV2Enabled)
         {
             tasks.Add(CreateLongRunningTask(() => tunnelV2.StartAsync(stoppingToken), tunnelV2, stoppingToken));
             tasks.Add(CreateLongRunningTask(() => tunnelV2.StartHttpServerAsync(stoppingToken), tunnelV2, stoppingToken));
         }
 
-        if (!options.NoPeerToPeer)
+        if (!options.Value.NoPeerToPeer)
         {
-            tasks.Add(CreateLongRunningTask(() => peerToPeerUtil1.StartAsync(STUN_PORT1, stoppingToken), peerToPeerUtil1, stoppingToken));
-            tasks.Add(CreateLongRunningTask(() => peerToPeerUtil2.StartAsync(STUN_PORT2, stoppingToken), peerToPeerUtil2, stoppingToken));
+            tasks.Add(CreateLongRunningTask(() => peerToPeerUtil1.StartAsync(StunPort1, stoppingToken), peerToPeerUtil1, stoppingToken));
+            tasks.Add(CreateLongRunningTask(() => peerToPeerUtil2.StartAsync(StunPort2, stoppingToken), peerToPeerUtil2, stoppingToken));
         }
 
         return WhenAllSafe(tasks);

@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "cncnet-server": {
+      "commandName": "Project",
+      "commandLineArgs": "--name DEVServer --port 33333 --portv2 22222"
+    },
+    "WSL": {
+      "commandName": "WSL2",
+      "distributionName": ""
+    }
+  }
+}

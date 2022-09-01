@@ -1,9 +1,6 @@
 ﻿namespace CnCNetServer;
 
 using System.Buffers;
-using System.Net;
-using System.Net.Sockets;
-using Microsoft.Extensions.Logging;
 
 internal sealed class PeerToPeerUtil : IAsyncDisposable
 {
@@ -15,22 +12,23 @@ internal sealed class PeerToPeerUtil : IAsyncDisposable
     private readonly Dictionary<int, int> connectionCounter = new(MaxConnectionsGlobal);
     private readonly System.Timers.Timer connectionCounterTimer = new(CounterResetInterval);
     private readonly IMemoryOwner<byte> memoryOwner = MemoryPool<byte>.Shared.Rent(40);
-    private readonly Memory<byte> sendBuffer;
     private readonly SemaphoreSlim connectionCounterSemaphoreSlim = new(1, 1);
     private readonly ILogger logger;
+
+    private Memory<byte> sendBuffer;
 
     public PeerToPeerUtil(ILogger<PeerToPeerUtil> logger)
     {
         this.logger = logger;
-
-        sendBuffer = memoryOwner.Memory[..40];
-
-        new Random().NextBytes(sendBuffer.Span);
-        BitConverter.GetBytes(IPAddress.HostToNetworkOrder(StunId)).AsSpan(..2).CopyTo(sendBuffer.Span[6..8]);
     }
 
     public Task StartAsync(int listenPort, CancellationToken cancellationToken)
     {
+        sendBuffer = memoryOwner.Memory[..40];
+
+        new Random().NextBytes(sendBuffer.Span);
+        BitConverter.GetBytes(IPAddress.HostToNetworkOrder(StunId)).AsSpan(..2).CopyTo(sendBuffer.Span[6..8]);
+
         connectionCounterTimer.Elapsed += (_, _) => ResetConnectionCounterAsync(cancellationToken);
         connectionCounterTimer.Enabled = true;
 
