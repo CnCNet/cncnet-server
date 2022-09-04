@@ -63,7 +63,7 @@ internal static class RootCommandBuilder
     private static void ValidatePort(OptionResult result)
     {
         const int minPort = 1024;
-        const int maxPort = 65535;
+        const int maxPort = 65534;
 
         if (result.GetValueOrDefault<int>() is < minPort or > maxPort)
             result.ErrorMessage = $"{nameof(ServiceOptions.TunnelPort)} minimum is {minPort} and maximum is {maxPort}";
