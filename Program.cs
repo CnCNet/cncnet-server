@@ -38,20 +38,22 @@ return await new CommandLineBuilder(RootCommandBuilder.Build())
                             AutomaticDecompression = DecompressionMethods.All,
                             ConnectCallback = async (context, token) =>
                             {
-                                AddressFamily addressFamily = options.AnnounceIpV6 ? AddressFamily.InterNetworkV6 : AddressFamily.InterNetwork;
-                                var socket = new Socket(addressFamily, SocketType.Stream, ProtocolType.Tcp)
-                                {
-                                    NoDelay = true
-                                };
+                                Socket? socket = null;
 
                                 try
                                 {
+                                    socket = options.ForceIpV4Announce
+                                        ? new(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp)
+                                        : new(SocketType.Stream, ProtocolType.Tcp);
+
+                                    socket.NoDelay = true;
+
                                     await socket.ConnectAsync(context.DnsEndPoint, token).ConfigureAwait(false);
                                     return new NetworkStream(socket, ownsSocket: true);
                                 }
                                 catch
                                 {
-                                    socket.Dispose();
+                                    socket?.Dispose();
                                     throw;
                                 }
                             }

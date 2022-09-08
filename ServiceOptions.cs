@@ -30,5 +30,5 @@ internal sealed record ServiceOptions
 
     public LogLevel SystemLogLevel { get; set; }
 
-    public bool AnnounceIpV6 { get; set; }
+    public bool ForceIpV4Announce { get; set; }
 }

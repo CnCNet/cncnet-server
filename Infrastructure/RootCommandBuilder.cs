@@ -52,7 +52,7 @@ internal static class RootCommandBuilder
             new Option<bool>(new[] { "--tunnelv2enabled", "--tunnelv2" }, () => true, "Start a V2 tunnel server"),
             new Option<LogLevel>("--serverloglevel", () => LogLevel.Information, "CnCNet server messages log level"),
             new Option<LogLevel>("--systemloglevel", () => LogLevel.Warning, "Low level system messages log level"),
-            new Option<bool>("--announceipv6", () => false, "Announce IPv6 address instead of IPv4 address to master server")
+            new Option<bool>("--forceipv4Announce", () => true, "Force announce using IPv4 address to master server")
         };
 
         rootCommand.Handler = CommandHandler.Create<IHost>(host => host.WaitForShutdownAsync());
