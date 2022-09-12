@@ -42,7 +42,7 @@ return await new CommandLineBuilder(RootCommandBuilder.Build())
 
                                 try
                                 {
-                                    socket = options.ForceIpV4Announce
+                                    socket = options.AnnounceIpV4
                                         ? new(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp)
                                         : new(SocketType.Stream, ProtocolType.Tcp);
 

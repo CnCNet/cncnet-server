@@ -1,6 +1,7 @@
 ﻿namespace CnCNetServer;
 
 using System.Buffers;
+using System.Net.NetworkInformation;
 
 internal abstract class Tunnel : IAsyncDisposable
 {
@@ -12,6 +13,7 @@ internal abstract class Tunnel : IAsyncDisposable
     private const int PingRequestPacketSize = 50;
     private const int PingResponsePacketSize = 12;
     private const int MaximumPacketSize = 128;
+    private const int PingTimeout = 3000;
 
     protected SemaphoreSlim? MappingsSemaphoreSlim;
 
@@ -19,6 +21,7 @@ internal abstract class Tunnel : IAsyncDisposable
 
     private System.Timers.Timer? heartbeatTimer;
     private Dictionary<int, int>? pingCounter;
+    private IPAddress? secondaryIpAddress;
 
     protected Tunnel(ILogger logger, IOptions<ServiceOptions> options, IHttpClientFactory httpClientFactory)
     {
@@ -208,7 +211,8 @@ internal abstract class Tunnel : IAsyncDisposable
         string path = FormattableString.Invariant($"?version={Version}&name={Uri.EscapeDataString(Options.Value.Name!)}") +
             FormattableString.Invariant($"&port={Port}&clients={clients}&maxclients={Options.Value.MaxClients}") +
             FormattableString.Invariant($"&masterpw={Uri.EscapeDataString(Options.Value.MasterPassword ?? string.Empty)}") +
-            FormattableString.Invariant($"&maintenance={(MaintenanceModeEnabled ? 1 : 0)}");
+            FormattableString.Invariant($"&maintenance={(MaintenanceModeEnabled ? 1 : 0)}") +
+            FormattableString.Invariant($"&address2={secondaryIpAddress}");
         HttpResponseMessage? httpResponseMessage = null;
 
         try
@@ -235,12 +239,49 @@ internal abstract class Tunnel : IAsyncDisposable
         }
     }
 
-    private Task StartHeartbeatAsync(CancellationToken cancellationToken)
+    private async Task StartHeartbeatAsync(CancellationToken cancellationToken)
     {
+        if (Options.Value.AnnounceIpV4 && Options.Value.AnnounceIpV6)
+            secondaryIpAddress = await GetPublicIpV6Address(cancellationToken).ConfigureAwait(false);
+
         heartbeatTimer!.Elapsed += (_, _) => SendHeartbeatAsync(cancellationToken);
         heartbeatTimer.Enabled = true;
 
-        return SendHeartbeatAsync(cancellationToken);
+        await SendHeartbeatAsync(cancellationToken);
+    }
+
+    private async Task<IPAddress?> GetPublicIpV6Address(CancellationToken cancellationToken)
+    {
+        IPAddress[] ipAddresses = await Dns.GetHostAddressesAsync(
+            Options.Value.MasterServerUrl!.Host, cancellationToken).ConfigureAwait(false);
+        using var ping = new Ping();
+
+        foreach (IPAddress ipAddress in ipAddresses
+            .Where(address => address.AddressFamily is AddressFamily.InterNetworkV6))
+        {
+            PingReply pingReply = await ping.SendPingAsync(ipAddress, PingTimeout).ConfigureAwait(false);
+
+            if (pingReply.Status is not IPStatus.Success)
+                continue;
+
+            IPAddress? pingIpAddress = null;
+            int ttl = 1;
+
+            while (!ipAddress.Equals(pingIpAddress))
+            {
+                pingReply = await ping.SendPingAsync(
+                    ipAddress, PingTimeout, Array.Empty<byte>(), new(ttl++, false)).ConfigureAwait(false);
+
+                if (!pingReply.Address.IsIPv6SiteLocal
+                    && !pingReply.Address.IsIPv6UniqueLocal
+                    && !pingReply.Address.IsIPv6LinkLocal)
+                {
+                    return pingReply.Address;
+                }
+            }
+        }
+
+        return null;
     }
 
     private async Task SendHeartbeatAsync(CancellationToken cancellationToken)

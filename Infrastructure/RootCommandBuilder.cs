@@ -13,6 +13,8 @@ internal static class RootCommandBuilder
         var ipLimitOption = new Option<int>("--iplimit", () => 8, "Maximum clients allowed per IP address");
         var tunnelPortOption = new Option<int>(new[] { "--tunnelport", "--port" }, () => 50001, "Port used for the V3 tunnel server");
         var tunnelV2PortOption = new Option<int>(new[] { "--tunnelv2port", "--portv2" }, () => 50000, "Port used for the V2 tunnel server");
+        var announceIpV6Option = new Option<bool>("--announceipv6", () => false, "Announce IPv6 address to master server");
+        var announceIpV4Option = new Option<bool>("--announceipv4", () => true, "Announce IPv4 address to master server");
 
         nameOption.AddValidator(result =>
         {
@@ -35,6 +37,8 @@ internal static class RootCommandBuilder
         });
         tunnelPortOption.AddValidator(ValidatePort);
         tunnelV2PortOption.AddValidator(ValidatePort);
+        announceIpV6Option.AddValidator(result => ValidateIpAnnounce(result, Socket.OSSupportsIPv6));
+        announceIpV4Option.AddValidator(result => ValidateIpAnnounce(result, Socket.OSSupportsIPv4));
 
         var rootCommand = new RootCommand("CnCNet tunnel server")
         {
@@ -52,7 +56,8 @@ internal static class RootCommandBuilder
             new Option<bool>(new[] { "--tunnelv2enabled", "--tunnelv2" }, () => true, "Start a V2 tunnel server"),
             new Option<LogLevel>("--serverloglevel", () => LogLevel.Information, "CnCNet server messages log level"),
             new Option<LogLevel>("--systemloglevel", () => LogLevel.Warning, "Low level system messages log level"),
-            new Option<bool>("--forceipv4Announce", () => true, "Force announce using IPv4 address to master server")
+            announceIpV6Option,
+            announceIpV4Option
         };
 
         rootCommand.Handler = CommandHandler.Create<IHost>(host => host.WaitForShutdownAsync());
@@ -66,6 +71,12 @@ internal static class RootCommandBuilder
         const int maxPort = 65534;
 
         if (result.GetValueOrDefault<int>() is < minPort or > maxPort)
-            result.ErrorMessage = $"{nameof(ServiceOptions.TunnelPort)} minimum is {minPort} and maximum is {maxPort}";
+            result.ErrorMessage = $"{result.Option.Name} minimum is {minPort} and maximum is {maxPort}";
+    }
+
+    private static void ValidateIpAnnounce(OptionResult result, bool isSupported)
+    {
+        if (result.GetValueOrDefault<bool>() && !isSupported)
+            result.ErrorMessage = $"{result.Option.Name} is not supported on this system";
     }
 }
