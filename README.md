@@ -23,6 +23,14 @@ Make sure these ports are open/forwarded to the machine (default ports):
 * UDP 3478
 * UDP 8054
 
+### Arguments
+
+Run `cncnet-server -?` to see a list of possible arguments.
+
+Example:
+
+![Screenshot 2022-09-24 155610](https://user-images.githubusercontent.com/25006126/192101835-c2e392f7-2e37-4373-a415-918c10ee772f.png)
+
 ### Start from console
 
 `cncnet-server --name NewServer`
