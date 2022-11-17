@@ -1,6 +1,6 @@
 # cncnet-server
 
-* .NET6
+* .NET7
 * Cross platform (Windows, Linux, Mac, ...)
 * No admin privileges required to run
 * Supports CnCNet V2 & V3 tunnel protocol
@@ -8,7 +8,7 @@
 ## Versions
 
 * The cross platform version ('any') is recommended for low maintenance.
-This requires the .NET Runtime 6 and ASP.NET Core Runtime 6 to be installed seperately. Security and other updates to the .NET runtimes are then usually handled automatically by the OS.
+This requires the .NET Runtime 7 and ASP.NET Core Runtime 7 to be installed seperately. Security and other updates to the .NET runtimes are then usually handled automatically by the OS.
 
 * OS specific versions can be expected to have better performance and are contained in a single file. This self contained executable contains all the required .NET runtimes.
 Updating the contained runtimes requires releasing a new version of the CnCNet server.
@@ -103,7 +103,7 @@ to inspect logs:
 
 ## How to build/publish
 
-### Non self contained executable (requires .NET Runtime 6 and ASP.NET Core Runtime 6 to be installed)
+### Non self contained executable (requires .NET Runtime 7 and ASP.NET Core Runtime 7 to be installed)
 
 Create 1 release for all platforms
 
