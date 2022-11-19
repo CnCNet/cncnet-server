@@ -32,7 +32,7 @@ jobs:
         dotnet publish cncnet-server.csproj -c Release -r osx-arm64 --no-self-contained -p:PublishReadyToRun=true -p:PublishReadyToRunComposite=true -p:PublishSingleFile=true -p:DebugType=embedded -p:AssemblyVersion=$env:GitVersion_AssemblySemVer -p:FileVersion=$env:GitVersion_AssemblySemFileVer -p:InformationalVersion=$env:GitVersion_InformationalVersion
     - name: Zip
       run: |
-        7z a -r ${{ format('cncnet-server-v{0}-net7.0-any.zip', env.GitVersion_SemVer) }} ./bin/Release/net7.0/publish/*"
+        7z a -r ${{ format('cncnet-server-v{0}-net7.0-any.zip', env.GitVersion_SemVer) }} ./bin/Release/net7.0/publish/*
         7z a -r ${{ format('cncnet-server-v{0}-net7.0-win-x64.zip', env.GitVersion_SemVer) }} ./bin/Release/net7.0/win-x64/publish/*
         7z a -r ${{ format('cncnet-server-v{0}-net7.0-win-arm64.zip', env.GitVersion_SemVer) }} ./bin/Release/net7.0/win-arm64/publish/*
         7z a -r ${{ format('cncnet-server-v{0}-net7.0-linux-x64.zip', env.GitVersion_SemVer) }} ./bin/Release/net7.0/linux-x64/publish/*
