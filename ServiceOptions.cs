@@ -33,4 +33,6 @@ internal sealed record ServiceOptions
     public bool AnnounceIpV6 { get; set; }
 
     public bool AnnounceIpV4 { get; set; }
+
+    public bool TunnelV2Https { get; set; }
 }

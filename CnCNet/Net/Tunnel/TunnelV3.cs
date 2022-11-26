@@ -6,6 +6,7 @@ using System.Security.Cryptography;
 internal sealed class TunnelV3 : Tunnel
 {
     private const int TunnelCommandRequestPacketSize = 8 + 1 + 20; // 8=receiver+sender ids, 1=command, 20=sha1 pass
+    private const int CommandRateLimit = 60; // 1 per X seconds
 
     private byte[]? maintenancePasswordSha1;
     private SemaphoreSlim? clientsSemaphoreSlim;
@@ -18,7 +19,7 @@ internal sealed class TunnelV3 : Tunnel
 
     protected override int Version => 3;
 
-    protected override int Port => Options.Value.TunnelPort;
+    protected override int Port => ServiceOptions.Value.TunnelPort;
 
     protected override int MinimumPacketSize => 8;
 
@@ -29,8 +30,8 @@ internal sealed class TunnelV3 : Tunnel
 
     public override Task StartAsync(CancellationToken cancellationToken)
     {
-        if (Options.Value.MaintenancePassword?.Any() ?? false)
-            maintenancePasswordSha1 = SHA1.HashData(Encoding.UTF8.GetBytes(Options.Value.MaintenancePassword));
+        if (ServiceOptions.Value.MaintenancePassword?.Any() ?? false)
+            maintenancePasswordSha1 = SHA1.HashData(Encoding.UTF8.GetBytes(ServiceOptions.Value.MaintenancePassword));
 
         lastCommandTick = DateTime.UtcNow.Ticks;
         clientsSemaphoreSlim = new(1, 1);
@@ -129,7 +130,7 @@ internal sealed class TunnelV3 : Tunnel
             }
             else
             {
-                if (Mappings.Count >= Options.Value.MaxClients || MaintenanceModeEnabled || !IsNewConnectionAllowed(remoteEp.Address))
+                if (Mappings.Count >= ServiceOptions.Value.MaxClients || MaintenanceModeEnabled || !IsNewConnectionAllowed(remoteEp.Address))
                     return;
 
                 sender = new(new(remoteEp.Address, remoteEp.Port));
@@ -184,7 +185,7 @@ internal sealed class TunnelV3 : Tunnel
     {
         int ipHash = newIp.GetHashCode();
 
-        if (ConnectionCounter!.TryGetValue(ipHash, out int count) && count >= Options.Value.IpLimit)
+        if (ConnectionCounter!.TryGetValue(ipHash, out int count) && count >= ServiceOptions.Value.IpLimit)
             return false;
 
         if (oldIp == null)
@@ -207,7 +208,7 @@ internal sealed class TunnelV3 : Tunnel
     private void ExecuteCommand(TunnelCommand command, ReadOnlyMemory<byte> data, IPEndPoint remoteEp)
     {
         if (TimeSpan.FromTicks(DateTime.UtcNow.Ticks - lastCommandTick).TotalSeconds < CommandRateLimit
-            || maintenancePasswordSha1 is null || !Options.Value.MaintenancePassword!.Any())
+            || maintenancePasswordSha1 is null || !ServiceOptions.Value.MaintenancePassword!.Any())
         {
             return;
         }

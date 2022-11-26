@@ -5,8 +5,6 @@ using System.Net.NetworkInformation;
 
 internal abstract class Tunnel : IAsyncDisposable
 {
-    protected const int CommandRateLimit = 60; // 1 per X seconds
-
     private const int MasterAnnounceInterval = 60 * 1000;
     private const int MaxPingsPerIp = 20;
     private const int MaxPingsGlobal = 5000;
@@ -23,10 +21,10 @@ internal abstract class Tunnel : IAsyncDisposable
     private Dictionary<int, int>? pingCounter;
     private IPAddress? secondaryIpAddress;
 
-    protected Tunnel(ILogger logger, IOptions<ServiceOptions> options, IHttpClientFactory httpClientFactory)
+    protected Tunnel(ILogger logger, IOptions<ServiceOptions> serviceOptions, IHttpClientFactory httpClientFactory)
     {
         this.httpClientFactory = httpClientFactory;
-        Options = options;
+        ServiceOptions = serviceOptions;
         Logger = logger;
     }
 
@@ -38,7 +36,7 @@ internal abstract class Tunnel : IAsyncDisposable
 
     protected ILogger Logger { get; }
 
-    protected IOptions<ServiceOptions> Options { get; }
+    protected IOptions<ServiceOptions> ServiceOptions { get; }
 
     protected bool MaintenanceModeEnabled { get; set; }
 
@@ -50,8 +48,8 @@ internal abstract class Tunnel : IAsyncDisposable
 
     public virtual async Task StartAsync(CancellationToken cancellationToken)
     {
-        Mappings = new(Options.Value.MaxClients);
-        ConnectionCounter = new(Options.Value.MaxClients);
+        Mappings = new(ServiceOptions.Value.MaxClients);
+        ConnectionCounter = new(ServiceOptions.Value.MaxClients);
         MappingsSemaphoreSlim = new(1, 1);
         Client = new(SocketType.Dgram, ProtocolType.Udp);
         heartbeatTimer = new(MasterAnnounceInterval);
@@ -208,16 +206,16 @@ internal abstract class Tunnel : IAsyncDisposable
 
     private async ValueTask SendMasterServerHeartbeatAsync(int clients, CancellationToken cancellationToken)
     {
-        string path = FormattableString.Invariant($"?version={Version}&name={Uri.EscapeDataString(Options.Value.Name!)}") +
-            FormattableString.Invariant($"&port={Port}&clients={clients}&maxclients={Options.Value.MaxClients}") +
-            FormattableString.Invariant($"&masterpw={Uri.EscapeDataString(Options.Value.MasterPassword ?? string.Empty)}") +
+        string path = FormattableString.Invariant($"?version={Version}&name={Uri.EscapeDataString(ServiceOptions.Value.Name!)}") +
+            FormattableString.Invariant($"&port={Port}&clients={clients}&maxclients={ServiceOptions.Value.MaxClients}") +
+            FormattableString.Invariant($"&masterpw={Uri.EscapeDataString(ServiceOptions.Value.MasterPassword ?? string.Empty)}") +
             FormattableString.Invariant($"&maintenance={(MaintenanceModeEnabled ? 1 : 0)}") +
             FormattableString.Invariant($"&address2={secondaryIpAddress}");
         HttpResponseMessage? httpResponseMessage = null;
 
         try
         {
-            httpResponseMessage = await httpClientFactory.CreateClient(nameof(Tunnel))
+            httpResponseMessage = await httpClientFactory.CreateClient(Options.DefaultName)
                 .GetAsync(path, cancellationToken).ConfigureAwait(false);
 
             string responseContent = await httpResponseMessage.EnsureSuccessStatusCode().Content
@@ -241,10 +239,12 @@ internal abstract class Tunnel : IAsyncDisposable
 
     private async Task StartHeartbeatAsync(CancellationToken cancellationToken)
     {
-        if (Options.Value.AnnounceIpV4 && Options.Value.AnnounceIpV6)
+        if (ServiceOptions.Value.AnnounceIpV4 && ServiceOptions.Value.AnnounceIpV6)
             secondaryIpAddress = await GetPublicIpV6Address(cancellationToken).ConfigureAwait(false);
 
+#pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
         heartbeatTimer!.Elapsed += (_, _) => SendHeartbeatAsync(cancellationToken);
+#pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
         heartbeatTimer.Enabled = true;
 
         await SendHeartbeatAsync(cancellationToken);
@@ -253,7 +253,7 @@ internal abstract class Tunnel : IAsyncDisposable
     private async Task<IPAddress?> GetPublicIpV6Address(CancellationToken cancellationToken)
     {
         IPAddress[] ipAddresses = await Dns.GetHostAddressesAsync(
-            Options.Value.MasterServerUrl!.Host, cancellationToken).ConfigureAwait(false);
+            ServiceOptions.Value.MasterServerUrl!.Host, cancellationToken).ConfigureAwait(false);
         using var ping = new Ping();
 
         foreach (IPAddress ipAddress in ipAddresses
@@ -297,7 +297,7 @@ internal abstract class Tunnel : IAsyncDisposable
 
             int clients = await CleanupConnectionsAsync(cancellationToken).ConfigureAwait(false);
 
-            if (!Options.Value.NoMasterAnnounce)
+            if (!ServiceOptions.Value.NoMasterAnnounce)
                 await SendMasterServerHeartbeatAsync(clients, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)

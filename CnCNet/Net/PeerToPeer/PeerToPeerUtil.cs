@@ -29,7 +29,9 @@ internal sealed class PeerToPeerUtil : IAsyncDisposable
         new Random().NextBytes(sendBuffer.Span);
         BitConverter.GetBytes(IPAddress.HostToNetworkOrder(StunId)).AsSpan(..2).CopyTo(sendBuffer.Span[6..8]);
 
+#pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
         connectionCounterTimer.Elapsed += (_, _) => ResetConnectionCounterAsync(cancellationToken);
+#pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
         connectionCounterTimer.Enabled = true;
 
         return StartReceiverAsync(listenPort, cancellationToken);

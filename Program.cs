@@ -20,7 +20,7 @@ return await new CommandLineBuilder(RootCommandBuilder.Build())
                     .AddSingleton<TunnelV3>()
                     .AddSingleton<TunnelV2>()
                     .AddTransient<PeerToPeerUtil>()
-                    .AddHttpClient(nameof(Tunnel))
+                    .AddHttpClient(Options.DefaultName)
                     .ConfigureHttpClient((serviceProvider, httpClient) =>
                     {
                         ServiceOptions options = serviceProvider.GetRequiredService<IOptions<ServiceOptions>>().Value;

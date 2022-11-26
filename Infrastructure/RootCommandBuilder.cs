@@ -49,7 +49,7 @@ internal static class RootCommandBuilder
             new Option<bool>(new[] { "--nomasterannounce", "--nomaster" }, () => false, "Don't register to master"),
             new Option<string?>(new[] { "--masterpassword", "--masterpw" }, () => null, "Master password"),
             new Option<string?>(new[] { "--maintenancepassword", "--maintpw" }, () => null, "Maintenance password"),
-            new Option<Uri>(new[] { "--masterserverurl", "--master" }, () => new("https://core-api.cncnet.org/tunnels/master-announce"), "Master server URL"),
+            new Option<Uri>(new[] { "--masterserverurl", "--master" }, () => new($"{Uri.UriSchemeHttps}://core-api.cncnet.org/tunnels/master-announce"), "Master server URL"),
             ipLimitOption,
             new Option<bool>(new[] { "--nopeertopeer", "--nop2p" }, () => false, "Disable NAT traversal ports (8054, 3478 UDP)"),
             new Option<bool>(new[] { "--tunnelv3enabled", "--tunnelv3" }, () => true, "Start a V3 tunnel server"),
@@ -57,7 +57,8 @@ internal static class RootCommandBuilder
             new Option<LogLevel>("--serverloglevel", () => LogLevel.Information, "CnCNet server messages log level"),
             new Option<LogLevel>("--systemloglevel", () => LogLevel.Warning, "Low level system messages log level"),
             announceIpV6Option,
-            announceIpV4Option
+            announceIpV4Option,
+            new Option<bool>(new[] { "--tunnelv2https", "--https" }, () => false, $"Use {Uri.UriSchemeHttps} Tunnel V2 web server")
         };
 
         rootCommand.Handler = CommandHandler.Create<IHost>(host => host.WaitForShutdownAsync());
