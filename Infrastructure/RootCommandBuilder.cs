@@ -13,7 +13,7 @@ internal static class RootCommandBuilder
         var ipLimitOption = new Option<int>("--iplimit", () => 8, "Maximum clients allowed per IP address");
         var tunnelPortOption = new Option<int>(new[] { "--tunnelport", "--port" }, () => 50001, "Port used for the V3 tunnel server");
         var tunnelV2PortOption = new Option<int>(new[] { "--tunnelv2port", "--portv2" }, () => 50000, "Port used for the V2 tunnel server");
-        var announceIpV6Option = new Option<bool>(new[] { "--announceipv6", "--ipv6" }, () => false, "Announce IPv6 address to master server");
+        var announceIpV6Option = new Option<bool>(new[] { "--announceipv6", "--ipv6" }, () => true, "Announce IPv6 address to master server");
         var announceIpV4Option = new Option<bool>(new[] { "--announceipv4", "--ipv4" }, () => true, "Announce IPv4 address to master server");
 
         nameOption.AddValidator(result =>
@@ -49,7 +49,7 @@ internal static class RootCommandBuilder
             new Option<bool>(new[] { "--nomasterannounce", "--nomaster" }, () => false, "Don't register to master"),
             new Option<string?>(new[] { "--masterpassword", "--masterpw" }, () => null, "Master password"),
             new Option<string?>(new[] { "--maintenancepassword", "--maintpw" }, () => null, "Maintenance password"),
-            new Option<Uri>(new[] { "--masterserverurl", "--master" }, () => new($"{Uri.UriSchemeHttps}://core-api.cncnet.org/tunnels/master-announce"), "Master server URL"),
+            new Option<Uri>(new[] { "--masterserverurl", "--master" }, () => new($"{Uri.UriSchemeHttps}://cncnet.org/master-announce"), "Master server URL"),
             ipLimitOption,
             new Option<bool>(new[] { "--nopeertopeer", "--nop2p" }, () => false, "Disable NAT traversal ports (8054, 3478 UDP)"),
             new Option<bool>(new[] { "--tunnelv3enabled", "--tunnelv3" }, () => true, "Start a V3 tunnel server"),
