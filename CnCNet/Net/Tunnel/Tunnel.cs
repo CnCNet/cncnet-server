@@ -2,6 +2,8 @@
 
 using System.Buffers;
 using System.Net.NetworkInformation;
+using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 
 internal abstract class Tunnel : IAsyncDisposable
 {
@@ -11,7 +13,6 @@ internal abstract class Tunnel : IAsyncDisposable
     private const int PingRequestPacketSize = 50;
     private const int PingResponsePacketSize = 12;
     private const int MaximumPacketSize = 128;
-    private const int PingTimeout = 3000;
 
     protected SemaphoreSlim? MappingsSemaphoreSlim;
 
@@ -239,8 +240,8 @@ internal abstract class Tunnel : IAsyncDisposable
 
     private async Task StartHeartbeatAsync(CancellationToken cancellationToken)
     {
-        if (ServiceOptions.Value.AnnounceIpV4 && ServiceOptions.Value.AnnounceIpV6)
-            secondaryIpAddress = await GetPublicIpV6Address(cancellationToken).ConfigureAwait(false);
+        if (ServiceOptions.Value is { AnnounceIpV4: true, AnnounceIpV6: true })
+            secondaryIpAddress = GetPublicIpV6Address();
 
 #pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
         heartbeatTimer!.Elapsed += (_, _) => SendHeartbeatAsync(cancellationToken);
@@ -250,39 +251,40 @@ internal abstract class Tunnel : IAsyncDisposable
         await SendHeartbeatAsync(cancellationToken);
     }
 
-    private async Task<IPAddress?> GetPublicIpV6Address(CancellationToken cancellationToken)
+    private static IPAddress? GetPublicIpV6Address()
     {
-        IPAddress[] ipAddresses = await Dns.GetHostAddressesAsync(
-            ServiceOptions.Value.MasterServerUrl!.Host, cancellationToken).ConfigureAwait(false);
-        using var ping = new Ping();
-
-        foreach (IPAddress ipAddress in ipAddresses
-            .Where(address => address.AddressFamily is AddressFamily.InterNetworkV6))
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            PingReply pingReply = await ping.SendPingAsync(ipAddress, PingTimeout).ConfigureAwait(false);
+            var ipV6Addresses = GetWindowsIpV6Addresses().ToList();
+            (IPAddress IpAddress, PrefixOrigin PrefixOrigin, SuffixOrigin SuffixOrigin) publicIpV6Address = ipV6Addresses.FirstOrDefault(
+                  q => q.PrefixOrigin is PrefixOrigin.RouterAdvertisement && q.SuffixOrigin is SuffixOrigin.LinkLayerAddress);
 
-            if (pingReply.Status is not IPStatus.Success)
-                continue;
+            if (publicIpV6Address.IpAddress is null)
+                publicIpV6Address = ipV6Addresses.FirstOrDefault(q => q.PrefixOrigin is PrefixOrigin.Dhcp && q.SuffixOrigin is SuffixOrigin.OriginDhcp);
 
-            IPAddress? pingIpAddress = null;
-            int ttl = 1;
-
-            while (!ipAddress.Equals(pingIpAddress))
-            {
-                pingReply = await ping.SendPingAsync(
-                    ipAddress, PingTimeout, Array.Empty<byte>(), new(ttl++, false)).ConfigureAwait(false);
-
-                if (!pingReply.Address.IsIPv6SiteLocal
-                    && !pingReply.Address.IsIPv6UniqueLocal
-                    && !pingReply.Address.IsIPv6LinkLocal)
-                {
-                    return pingReply.Address;
-                }
-            }
+            return publicIpV6Address.IpAddress;
         }
 
-        return null;
+        return GetIpV6Addresses().FirstOrDefault();
     }
+
+    [SupportedOSPlatform("windows")]
+    private static IEnumerable<(IPAddress IpAddress, PrefixOrigin PrefixOrigin, SuffixOrigin SuffixOrigin)> GetWindowsIpV6Addresses()
+        => GetIpV6UnicastAddresses()
+        .Select(q => (q.Address, q.PrefixOrigin, q.SuffixOrigin));
+
+    private static IEnumerable<IPAddress> GetIpV6Addresses()
+        => GetIpV6UnicastAddresses()
+        .Select(q => q.Address);
+
+    private static IEnumerable<UnicastIPAddressInformation> GetIpV6UnicastAddresses()
+        => NetworkInterface.GetAllNetworkInterfaces()
+        .Where(q => q.OperationalStatus is OperationalStatus.Up)
+        .Select(q => q.GetIPProperties())
+        .Where(q => q.GatewayAddresses.Any())
+        .SelectMany(q => q.UnicastAddresses)
+        .Where(q => q.Address.AddressFamily is AddressFamily.InterNetworkV6)
+        .Where(q => q.Address is { IsIPv6SiteLocal: false, IsIPv6UniqueLocal: false, IsIPv6LinkLocal: false });
 
     private async Task SendHeartbeatAsync(CancellationToken cancellationToken)
     {

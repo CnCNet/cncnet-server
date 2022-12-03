@@ -80,7 +80,7 @@ internal sealed class CnCNetBackgroundService : BackgroundService
 
     protected override Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (!options.Value.TunnelV3Enabled && !options.Value.TunnelV2Enabled && options.Value.NoPeerToPeer)
+        if (options.Value is { TunnelV3Enabled: false, TunnelV2Enabled: false, NoPeerToPeer: true })
             throw new ConfigurationException("No tunnel or peer to peer enabled.");
 
         var tasks = new List<Task>();
