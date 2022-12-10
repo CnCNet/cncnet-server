@@ -15,7 +15,10 @@ internal static class RootCommandBuilder
         var tunnelV2PortOption = new Option<int>(new[] { "--tunnelv2port", "--portv2" }, () => 50000, "Port used for the V2 tunnel server");
         var announceIpV6Option = new Option<bool>(new[] { "--announceipv6", "--ipv6" }, () => false, "Announce IPv6 address to master server");
         var announceIpV4Option = new Option<bool>(new[] { "--announceipv4", "--ipv4" }, () => true, "Announce IPv4 address to master server");
-        var maxPacketSizeOption = new Option<int>(new[] { "--maxpacketsize", "--packet" }, () => 1024, "Maximum accepted packet size");
+        var maxPacketSizeOption = new Option<int>(new[] { "--maxpacketsize", "--packet" }, () => 2048, "Maximum accepted packet size");
+        var maxPingsGlobalOption = new Option<ushort>(new[] { "--maxpingsglobal", "--pings" }, () => 1024, "Maximum accepted ping requests globally");
+        var maxPingsPerIpOption = new Option<ushort>(new[] { "--maxpingsperIp", "--pingsip" }, () => 20, "Maximum accepted ping requests per IP");
+        var masterAnnounceIntervalOption = new Option<ushort>(new[] { "--masterannounceinterval", "--announceinterval" }, () => 60, "Master server announce interval in seconds");
 
         nameOption.AddValidator(result =>
         {
@@ -67,7 +70,10 @@ internal static class RootCommandBuilder
             announceIpV6Option,
             announceIpV4Option,
             new Option<bool>(new[] { "--tunnelv2https", "--https" }, () => false, $"Use {Uri.UriSchemeHttps} Tunnel V2 web server"),
-            maxPacketSizeOption
+            maxPacketSizeOption,
+            maxPingsGlobalOption,
+            maxPingsPerIpOption,
+            masterAnnounceIntervalOption
         };
 
         rootCommand.Handler = CommandHandler.Create<IHost>(host => host.WaitForShutdownAsync());

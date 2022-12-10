@@ -37,4 +37,10 @@ internal sealed record ServiceOptions
     public bool TunnelV2Https { get; set; }
 
     public int MaxPacketSize { get; set; }
+
+    public ushort MaxPingsGlobal { get; set; }
+
+    public ushort MaxPingsPerIp { get; set; }
+
+    public ushort MasterAnnounceInterval { get; set; }
 }

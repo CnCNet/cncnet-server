@@ -88,7 +88,13 @@ internal sealed class TunnelV2 : Tunnel
         {
             Logger.LogDebug(
                 FormattableString.Invariant($"V{Version} client {remoteEp} ({senderId} -> {receiverId}) received") +
-                FormattableString.Invariant($" {buffer.Length}: {Convert.ToHexString(buffer.Span)}"));
+                FormattableString.Invariant($" {buffer.Length} bytes."));
+        }
+        else if (Logger.IsEnabled(LogLevel.Trace))
+        {
+            Logger.LogDebug(
+                FormattableString.Invariant($"V{Version} client {remoteEp} ({senderId} -> {receiverId}) received") +
+                FormattableString.Invariant($" {buffer.Length} bytes: {Convert.ToHexString(buffer.Span)}."));
         }
 
         if ((senderId == receiverId && senderId != 0) || remoteEp.Address.Equals(IPAddress.Loopback)
@@ -150,7 +156,13 @@ internal sealed class TunnelV2 : Tunnel
                         if (Logger.IsEnabled(LogLevel.Debug))
                         {
                             Logger.LogDebug(
-                                FormattableString.Invariant($"V{Version} client {remoteEp} ({senderId}) sending to ") +
+                                FormattableString.Invariant($"V{Version} client {remoteEp} ({senderId}) sending {buffer.Length} bytes to ") +
+                                FormattableString.Invariant($"{receiver.RemoteEp} ({receiverId})."));
+                        }
+                        else if (Logger.IsEnabled(LogLevel.Trace))
+                        {
+                            Logger.LogDebug(
+                                FormattableString.Invariant($"V{Version} client {remoteEp} ({senderId}) sending {buffer.Length} bytes to ") +
                                 FormattableString.Invariant($"{receiver.RemoteEp} ({receiverId}): ") +
                                 FormattableString.Invariant($" {Convert.ToHexString(buffer.Span)}."));
                         }

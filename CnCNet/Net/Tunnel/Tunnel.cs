@@ -7,9 +7,6 @@ using System.Runtime.Versioning;
 
 internal abstract class Tunnel : IAsyncDisposable
 {
-    private const int MasterAnnounceInterval = 60 * 1000;
-    private const int MaxPingsPerIp = 20;
-    private const int MaxPingsGlobal = 5000;
     private const int PingRequestPacketSize = 50;
     private const int PingResponsePacketSize = 12;
 
@@ -52,8 +49,8 @@ internal abstract class Tunnel : IAsyncDisposable
         ConnectionCounter = new(ServiceOptions.Value.MaxClients);
         MappingsSemaphoreSlim = new(1, 1);
         Client = new(SocketType.Dgram, ProtocolType.Udp);
-        heartbeatTimer = new(MasterAnnounceInterval);
-        pingCounter = new(MaxPingsGlobal);
+        heartbeatTimer = new(TimeSpan.FromSeconds(ServiceOptions.Value.MasterAnnounceInterval));
+        pingCounter = new(ServiceOptions.Value.MaxPingsGlobal);
 
         await StartHeartbeatAsync(cancellationToken).ConfigureAwait(false);
 
@@ -160,7 +157,13 @@ internal abstract class Tunnel : IAsyncDisposable
                 {
                     Logger.LogDebug(
                         FormattableString.Invariant($"V{Version} client {remoteEp} replying to ping ") +
-                        FormattableString.Invariant($"({pingCounter!.Count}/{MaxPingsGlobal}):") +
+                        FormattableString.Invariant($"({pingCounter!.Count}/{ServiceOptions.Value.MaxPingsGlobal})."));
+                }
+                else if (Logger.IsEnabled(LogLevel.Trace))
+                {
+                    Logger.LogDebug(
+                        FormattableString.Invariant($"V{Version} client {remoteEp} replying to ping ") +
+                        FormattableString.Invariant($"({pingCounter!.Count}/{ServiceOptions.Value.MaxPingsGlobal}):") +
                         FormattableString.Invariant($" {Convert.ToHexString(buffer.Span[..PingResponsePacketSize])}."));
                 }
 
@@ -191,12 +194,12 @@ internal abstract class Tunnel : IAsyncDisposable
 
     private bool IsPingLimitReached(IPAddress address)
     {
-        if (pingCounter!.Count >= MaxPingsGlobal)
+        if (pingCounter!.Count >= ServiceOptions.Value.MaxPingsGlobal)
             return true;
 
         int ipHash = address.GetHashCode();
 
-        if (pingCounter.TryGetValue(ipHash, out int count) && count >= MaxPingsPerIp)
+        if (pingCounter.TryGetValue(ipHash, out int count) && count >= ServiceOptions.Value.MaxPingsPerIp)
             return true;
 
         pingCounter[ipHash] = ++count;
