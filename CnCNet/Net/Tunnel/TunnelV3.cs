@@ -31,7 +31,9 @@ internal sealed class TunnelV3 : Tunnel
     public override Task StartAsync(CancellationToken cancellationToken)
     {
         if (ServiceOptions.Value.MaintenancePassword?.Any() ?? false)
+#pragma warning disable CA5350 // Do Not Use Weak Cryptographic Algorithms
             maintenancePasswordSha1 = SHA1.HashData(Encoding.UTF8.GetBytes(ServiceOptions.Value.MaintenancePassword));
+#pragma warning restore CA5350 // Do Not Use Weak Cryptographic Algorithms
 
         lastCommandTick = DateTime.UtcNow.Ticks;
         clientsSemaphoreSlim = new(1, 1);

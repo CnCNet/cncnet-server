@@ -12,7 +12,6 @@ internal abstract class Tunnel : IAsyncDisposable
     private const int MaxPingsGlobal = 5000;
     private const int PingRequestPacketSize = 50;
     private const int PingResponsePacketSize = 12;
-    private const int MaximumPacketSize = 128;
 
     protected SemaphoreSlim? MappingsSemaphoreSlim;
 
@@ -58,8 +57,8 @@ internal abstract class Tunnel : IAsyncDisposable
 
         await StartHeartbeatAsync(cancellationToken).ConfigureAwait(false);
 
-        using IMemoryOwner<byte> memoryOwner = MemoryPool<byte>.Shared.Rent(MaximumPacketSize);
-        Memory<byte> buffer = memoryOwner.Memory[..MaximumPacketSize];
+        using IMemoryOwner<byte> memoryOwner = MemoryPool<byte>.Shared.Rent(ServiceOptions.Value.MaxPacketSize);
+        Memory<byte> buffer = memoryOwner.Memory[..ServiceOptions.Value.MaxPacketSize];
         var remoteEp = new IPEndPoint(IPAddress.Any, 0);
 
         Client.Bind(new IPEndPoint(IPAddress.IPv6Any, Port));
@@ -77,7 +76,7 @@ internal abstract class Tunnel : IAsyncDisposable
                     .ConfigureAwait(false);
 
             if (socketReceiveFromResult.ReceivedBytes < MinimumPacketSize
-                || socketReceiveFromResult.ReceivedBytes > MaximumPacketSize)
+                || socketReceiveFromResult.ReceivedBytes > ServiceOptions.Value.MaxPacketSize)
             {
                 if (Logger.IsEnabled(LogLevel.Debug))
                 {

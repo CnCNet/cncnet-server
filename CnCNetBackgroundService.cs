@@ -132,10 +132,17 @@ internal sealed class CnCNetBackgroundService : BackgroundService
                     {
                         await task().ConfigureAwait(false);
                     }
-                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
                     {
-                        logger.LogExceptionDetails(ex);
-                        await disposable.DisposeAsync().ConfigureAwait(false);
+                        await LogExceptionAsync(disposable, ex).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // ignored, shutdown signal
+                    }
+                    catch (Exception ex)
+                    {
+                        await LogExceptionAsync(disposable, ex).ConfigureAwait(false);
                     }
                 }
             },
@@ -143,5 +150,11 @@ internal sealed class CnCNetBackgroundService : BackgroundService
             cancellationToken,
             TaskCreationOptions.LongRunning,
             TaskScheduler.Default).Unwrap();
+    }
+
+    private async ValueTask LogExceptionAsync(IAsyncDisposable disposable, Exception ex)
+    {
+        logger.LogExceptionDetails(ex);
+        await disposable.DisposeAsync().ConfigureAwait(false);
     }
 }

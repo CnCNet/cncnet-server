@@ -105,6 +105,9 @@ internal sealed class PeerToPeerUtil : IAsyncDisposable
     private async ValueTask ReceiveAsync(
         Socket client, ReadOnlyMemory<byte> buffer, IPEndPoint remoteEp, CancellationToken cancellationToken)
     {
+        logger.LogDebug(
+            FormattableString.Invariant($"P2P client {remoteEp} connected."));
+
         if (IsInvalidRemoteIpEndPoint(remoteEp)
             || await IsConnectionLimitReachedAsync(remoteEp.Address, cancellationToken).ConfigureAwait(false))
         {

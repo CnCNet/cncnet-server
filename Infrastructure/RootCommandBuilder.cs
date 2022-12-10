@@ -15,6 +15,7 @@ internal static class RootCommandBuilder
         var tunnelV2PortOption = new Option<int>(new[] { "--tunnelv2port", "--portv2" }, () => 50000, "Port used for the V2 tunnel server");
         var announceIpV6Option = new Option<bool>(new[] { "--announceipv6", "--ipv6" }, () => false, "Announce IPv6 address to master server");
         var announceIpV4Option = new Option<bool>(new[] { "--announceipv4", "--ipv4" }, () => true, "Announce IPv4 address to master server");
+        var maxPacketSizeOption = new Option<int>(new[] { "--maxpacketsize", "--packet" }, () => 1024, "Maximum accepted packet size");
 
         nameOption.AddValidator(result =>
         {
@@ -34,6 +35,13 @@ internal static class RootCommandBuilder
 
             if (result.GetValueOrDefault<int>() < minIpLimit)
                 result.ErrorMessage = $"{nameof(ServiceOptions.IpLimit)} minimum is {minIpLimit}";
+        });
+        maxPacketSizeOption.AddValidator(result =>
+        {
+            const int maxPacketSizeLimit = 512;
+
+            if (result.GetValueOrDefault<int>() < maxPacketSizeLimit)
+                result.ErrorMessage = $"{nameof(ServiceOptions.MaxPacketSize)} minimum is {maxPacketSizeLimit}";
         });
         tunnelPortOption.AddValidator(ValidatePort);
         tunnelV2PortOption.AddValidator(ValidatePort);
@@ -58,7 +66,8 @@ internal static class RootCommandBuilder
             new Option<LogLevel>("--systemloglevel", () => LogLevel.Warning, "Low level system messages log level"),
             announceIpV6Option,
             announceIpV4Option,
-            new Option<bool>(new[] { "--tunnelv2https", "--https" }, () => false, $"Use {Uri.UriSchemeHttps} Tunnel V2 web server")
+            new Option<bool>(new[] { "--tunnelv2https", "--https" }, () => false, $"Use {Uri.UriSchemeHttps} Tunnel V2 web server"),
+            maxPacketSizeOption
         };
 
         rootCommand.Handler = CommandHandler.Create<IHost>(host => host.WaitForShutdownAsync());

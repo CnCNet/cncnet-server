@@ -35,4 +35,6 @@ internal sealed record ServiceOptions
     public bool AnnounceIpV4 { get; set; }
 
     public bool TunnelV2Https { get; set; }
+
+    public int MaxPacketSize { get; set; }
 }
