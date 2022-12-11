@@ -188,7 +188,7 @@ internal abstract class Tunnel : IAsyncDisposable
                 }
                 else if (Logger.IsEnabled(LogLevel.Trace))
                 {
-                    Logger.LogDebug(
+                    Logger.LogTrace(
                         FormattableString.Invariant($"V{Version} client {remoteEp} replying to ping ") +
                         FormattableString.Invariant($"({pingCounter!.Count}/{ServiceOptions.Value.MaxPingsGlobal}):") +
                         FormattableString.Invariant($" {Convert.ToHexString(buffer.Span[..PingResponsePacketSize])}."));

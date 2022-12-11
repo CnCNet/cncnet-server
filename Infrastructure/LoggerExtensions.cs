@@ -20,6 +20,9 @@ internal static partial class LoggerExtensions
             .AddFilter(nameof(CnCNetServer), serverLogLevel);
     }
 
+    [LoggerMessage(EventId = 4, Level = LogLevel.Trace, Message = "{message}")]
+    public static partial void LogTrace(this ILogger logger, string message);
+
     [LoggerMessage(EventId = 3, Level = LogLevel.Debug, Message = "{message}")]
     public static partial void LogDebug(this ILogger logger, string message);
 

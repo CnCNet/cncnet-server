@@ -92,7 +92,7 @@ internal sealed class TunnelV2 : Tunnel
         }
         else if (Logger.IsEnabled(LogLevel.Trace))
         {
-            Logger.LogDebug(
+            Logger.LogTrace(
                 FormattableString.Invariant($"V{Version} client {remoteEp} ({senderId} -> {receiverId}) received") +
                 FormattableString.Invariant($" {buffer.Length} bytes: {Convert.ToHexString(buffer.Span)}."));
         }
@@ -161,7 +161,7 @@ internal sealed class TunnelV2 : Tunnel
                         }
                         else if (Logger.IsEnabled(LogLevel.Trace))
                         {
-                            Logger.LogDebug(
+                            Logger.LogTrace(
                                 FormattableString.Invariant($"V{Version} client {remoteEp} ({senderId}) sending {buffer.Length} bytes to ") +
                                 FormattableString.Invariant($"{receiver.RemoteEp} ({receiverId}): ") +
                                 FormattableString.Invariant($" {Convert.ToHexString(buffer.Span)}."));
