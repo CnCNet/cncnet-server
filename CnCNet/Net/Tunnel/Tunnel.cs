@@ -54,8 +54,6 @@ internal abstract class Tunnel : IAsyncDisposable
 
         await StartHeartbeatAsync(cancellationToken).ConfigureAwait(false);
 
-        using IMemoryOwner<byte> memoryOwner = MemoryPool<byte>.Shared.Rent(ServiceOptions.Value.MaxPacketSize);
-        Memory<byte> buffer = memoryOwner.Memory[..ServiceOptions.Value.MaxPacketSize];
         var remoteEp = new IPEndPoint(IPAddress.Any, 0);
 
         Client.Bind(new IPEndPoint(IPAddress.IPv6Any, Port));
@@ -68,26 +66,27 @@ internal abstract class Tunnel : IAsyncDisposable
 
         while (!cancellationToken.IsCancellationRequested)
         {
-            SocketReceiveFromResult socketReceiveFromResult =
-                await Client.ReceiveFromAsync(buffer, SocketFlags.None, remoteEp, cancellationToken)
-                    .ConfigureAwait(false);
+            using IMemoryOwner<byte> memoryOwner = MemoryPool<byte>.Shared.Rent(ServiceOptions.Value.MaxPacketSize);
+            Memory<byte> buffer = memoryOwner.Memory[..ServiceOptions.Value.MaxPacketSize];
+            SocketReceiveFromResult socketReceiveFromResult;
 
-            if (socketReceiveFromResult.ReceivedBytes < MinimumPacketSize
-                || socketReceiveFromResult.ReceivedBytes > ServiceOptions.Value.MaxPacketSize)
+            try
             {
-                if (Logger.IsEnabled(LogLevel.Debug))
-                {
-                    Logger.LogDebug(FormattableString.Invariant($"{DateTimeOffset.Now} V{Version} Tunnel invalid UDP ") +
-                        FormattableString.Invariant($"packet size {socketReceiveFromResult.ReceivedBytes}."));
-                }
+                socketReceiveFromResult =
+                    await Client.ReceiveFromAsync(buffer, SocketFlags.None, remoteEp, cancellationToken)
+                    .ConfigureAwait(false);
             }
-            else
+            catch (SocketException ex)
             {
-                await ReceiveAsync(
-                    buffer[..socketReceiveFromResult.ReceivedBytes],
-                    (IPEndPoint)socketReceiveFromResult.RemoteEndPoint,
-                    cancellationToken).ConfigureAwait(false);
+                await Logger.LogExceptionDetailsAsync(ex).ConfigureAwait(false);
+                continue;
             }
+
+#pragma warning disable CS4014
+            DoReceiveAsync(
+                buffer[..socketReceiveFromResult.ReceivedBytes], (IPEndPoint)socketReceiveFromResult.RemoteEndPoint,
+                cancellationToken).ConfigureAwait(false);
+#pragma warning restore CS4014
         }
     }
 
@@ -138,6 +137,34 @@ internal abstract class Tunnel : IAsyncDisposable
 
     protected virtual void CleanupConnection(TunnelClient tunnelClient)
     {
+    }
+
+    private async Task DoReceiveAsync(
+        ReadOnlyMemory<byte> buffer, IPEndPoint remoteEp, CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (buffer.Length < MinimumPacketSize || buffer.Length > ServiceOptions.Value.MaxPacketSize)
+            {
+                if (Logger.IsEnabled(LogLevel.Debug))
+                {
+                    Logger.LogDebug(FormattableString.Invariant($"{DateTimeOffset.Now} V{Version} Tunnel invalid UDP ") +
+                        FormattableString.Invariant($"packet size {buffer.Length}."));
+                }
+
+                return;
+            }
+
+            await ReceiveAsync(buffer, remoteEp, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            // ignore, shut down signal
+        }
+        catch (Exception ex)
+        {
+            await Logger.LogExceptionDetailsAsync(ex).ConfigureAwait(false);
+        }
     }
 
     protected abstract ValueTask ReceiveAsync(
@@ -234,10 +261,6 @@ internal abstract class Tunnel : IAsyncDisposable
         {
             await Logger.LogExceptionDetailsAsync(ex, httpResponseMessage).ConfigureAwait(false);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            await Logger.LogExceptionDetailsAsync(ex).ConfigureAwait(false);
-        }
     }
 
     private async Task StartHeartbeatAsync(CancellationToken cancellationToken)
@@ -304,7 +327,11 @@ internal abstract class Tunnel : IAsyncDisposable
             if (!ServiceOptions.Value.NoMasterAnnounce)
                 await SendMasterServerHeartbeatAsync(clients, cancellationToken).ConfigureAwait(false);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // ignore, shut down signal
+        }
+        catch (Exception ex)
         {
             await Logger.LogExceptionDetailsAsync(ex).ConfigureAwait(false);
         }

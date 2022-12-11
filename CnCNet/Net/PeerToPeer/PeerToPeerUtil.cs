@@ -11,11 +11,8 @@ internal sealed class PeerToPeerUtil : IAsyncDisposable
 
     private readonly Dictionary<int, int> connectionCounter = new(MaxConnectionsGlobal);
     private readonly System.Timers.Timer connectionCounterTimer = new(CounterResetInterval);
-    private readonly IMemoryOwner<byte> memoryOwner = MemoryPool<byte>.Shared.Rent(40);
     private readonly SemaphoreSlim connectionCounterSemaphoreSlim = new(1, 1);
     private readonly ILogger logger;
-
-    private Memory<byte> sendBuffer;
 
     public PeerToPeerUtil(ILogger<PeerToPeerUtil> logger)
     {
@@ -24,11 +21,6 @@ internal sealed class PeerToPeerUtil : IAsyncDisposable
 
     public Task StartAsync(int listenPort, CancellationToken cancellationToken)
     {
-        sendBuffer = memoryOwner.Memory[..40];
-
-        new Random().NextBytes(sendBuffer.Span);
-        BitConverter.GetBytes(IPAddress.HostToNetworkOrder(StunId)).AsSpan(..2).CopyTo(sendBuffer.Span[6..8]);
-
 #pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
         connectionCounterTimer.Elapsed += (_, _) => ResetConnectionCounterAsync(cancellationToken);
 #pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
@@ -41,7 +33,6 @@ internal sealed class PeerToPeerUtil : IAsyncDisposable
     {
         connectionCounterSemaphoreSlim.Dispose();
         connectionCounterTimer.Dispose();
-        memoryOwner.Dispose();
 
         return ValueTask.CompletedTask;
     }
@@ -68,7 +59,11 @@ internal sealed class PeerToPeerUtil : IAsyncDisposable
                 connectionCounterSemaphoreSlim.Release();
             }
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (OperationCanceledException)
+        {
+            // ignore, shut down signal
+        }
+        catch (Exception ex)
         {
             await logger.LogExceptionDetailsAsync(ex).ConfigureAwait(false);
         }
@@ -77,8 +72,6 @@ internal sealed class PeerToPeerUtil : IAsyncDisposable
     private async Task StartReceiverAsync(int listenPort, CancellationToken cancellationToken)
     {
         using var client = new Socket(SocketType.Dgram, ProtocolType.Udp);
-        using IMemoryOwner<byte> receiveMemoryOwner = MemoryPool<byte>.Shared.Rent(64);
-        Memory<byte> buffer = receiveMemoryOwner.Memory[..64];
         var remoteEp = new IPEndPoint(IPAddress.Any, 0);
 
         client.Bind(new IPEndPoint(IPAddress.IPv6Any, listenPort));
@@ -91,40 +84,77 @@ internal sealed class PeerToPeerUtil : IAsyncDisposable
 
         while (!cancellationToken.IsCancellationRequested)
         {
-            SocketReceiveFromResult socketReceiveFromResult = await client.ReceiveFromAsync(
-                buffer, SocketFlags.None, remoteEp, cancellationToken).ConfigureAwait(false);
+            using IMemoryOwner<byte> memoryOwner = MemoryPool<byte>.Shared.Rent(64);
+            Memory<byte> buffer = memoryOwner.Memory[..64];
+            SocketReceiveFromResult socketReceiveFromResult;
+
+            try
+            {
+                socketReceiveFromResult = await client.ReceiveFromAsync(
+                    buffer, SocketFlags.None, remoteEp, cancellationToken).ConfigureAwait(false);
+            }
+            catch (SocketException ex)
+            {
+                await logger.LogExceptionDetailsAsync(ex).ConfigureAwait(false);
+                continue;
+            }
 
             if (socketReceiveFromResult.ReceivedBytes == 48)
             {
-                await ReceiveAsync(client, buffer, (IPEndPoint)socketReceiveFromResult.RemoteEndPoint, cancellationToken)
+#pragma warning disable CS4014
+                ReceiveAsync(client, buffer, (IPEndPoint)socketReceiveFromResult.RemoteEndPoint, cancellationToken)
                     .ConfigureAwait(false);
+#pragma warning restore CS4014
             }
         }
     }
 
-    private async ValueTask ReceiveAsync(
-        Socket client, ReadOnlyMemory<byte> buffer, IPEndPoint remoteEp, CancellationToken cancellationToken)
+    private async Task ReceiveAsync(
+        Socket client, ReadOnlyMemory<byte> receiveBuffer, IPEndPoint remoteEp, CancellationToken cancellationToken)
     {
-        logger.LogDebug(
-            FormattableString.Invariant($"P2P client {remoteEp} connected."));
-
-        if (IsInvalidRemoteIpEndPoint(remoteEp)
-            || await IsConnectionLimitReachedAsync(remoteEp.Address, cancellationToken).ConfigureAwait(false))
+        try
         {
-            return;
+            logger.LogDebug(
+                FormattableString.Invariant($"P2P client {remoteEp} connected."));
+
+            if (IsInvalidRemoteIpEndPoint(remoteEp)
+                || await IsConnectionLimitReachedAsync(remoteEp.Address, cancellationToken).ConfigureAwait(false))
+            {
+                return;
+            }
+
+            if (IPAddress.NetworkToHostOrder(BitConverter.ToInt16(receiveBuffer.Span)) != StunId)
+                return;
+
+            using IMemoryOwner<byte> memoryOwner = MemoryPool<byte>.Shared.Rent(40);
+            Memory<byte> sendBuffer = memoryOwner.Memory[..40];
+
+            new Random().NextBytes(sendBuffer.Span);
+            BitConverter.GetBytes(IPAddress.HostToNetworkOrder(StunId)).AsSpan(..2).CopyTo(sendBuffer.Span[6..8]);
+            byte[] ipAddressBytes = remoteEp.Address.IsIPv4MappedToIPv6 || remoteEp.AddressFamily is AddressFamily.InterNetwork
+                ? remoteEp.Address.MapToIPv4().GetAddressBytes()
+                : remoteEp.Address.GetAddressBytes();
+
+            ipAddressBytes.AsSpan(..ipAddressBytes.Length).CopyTo(sendBuffer.Span[..ipAddressBytes.Length]);
+
+            byte[] portBytes = BitConverter.GetBytes(IPAddress.HostToNetworkOrder((short)remoteEp.Port));
+
+            portBytes.AsSpan(..portBytes.Length).CopyTo(sendBuffer.Span[ipAddressBytes.Length..(ipAddressBytes.Length + 2)]);
+
+            // obfuscate
+            for (int i = 0; i < ipAddressBytes.Length + portBytes.Length; i++)
+                sendBuffer.Span[i] ^= 0x20;
+
+            await client.SendToAsync(sendBuffer, SocketFlags.None, remoteEp, cancellationToken).ConfigureAwait(false);
         }
-
-        if (IPAddress.NetworkToHostOrder(BitConverter.ToInt16(buffer.Span)) != StunId)
-            return;
-
-        remoteEp.Address.GetAddressBytes().AsSpan(..4).CopyTo(sendBuffer.Span[..4]);
-        BitConverter.GetBytes(IPAddress.HostToNetworkOrder((short)remoteEp.Port)).AsSpan(..2).CopyTo(sendBuffer.Span[4..6]);
-
-        // obfuscate
-        for (int i = 0; i < 6; i++)
-            sendBuffer.Span[i] ^= 0x20;
-
-        await client.SendToAsync(sendBuffer, SocketFlags.None, remoteEp, cancellationToken).ConfigureAwait(false);
+        catch (OperationCanceledException)
+        {
+            // ignore, shut down signal
+        }
+        catch (Exception ex)
+        {
+            await logger.LogExceptionDetailsAsync(ex).ConfigureAwait(false);
+        }
     }
 
     private async ValueTask<bool> IsConnectionLimitReachedAsync(IPAddress address, CancellationToken cancellationToken)

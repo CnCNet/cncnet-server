@@ -283,14 +283,13 @@ internal sealed class TunnelV2 : Tunnel
                 {
                     int clientId = rand.Next(0, short.MaxValue);
 
-                    if (!Mappings.ContainsKey((uint)clientId))
-                    {
-                        clients--;
+                    if (Mappings.ContainsKey((uint)clientId))
+                        continue;
 
-                        Mappings.Add((uint)clientId, new());
+                    clients--;
 
-                        clientIds.Add(clientId);
-                    }
+                    Mappings.Add((uint)clientId, new());
+                    clientIds.Add(clientId);
                 }
             }
         }
