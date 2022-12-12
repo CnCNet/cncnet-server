@@ -108,7 +108,7 @@ chmod +x cncnet-server.dll
 ```
 
 ```
-cd /etc/systemd/system#
+cd /etc/systemd/system/
 ```
 
 ```
@@ -123,7 +123,7 @@ Description=CnCNet Tunnel Server
 [Service]
 Type=notify
 WorkingDirectory=/home/cncnet-server
-ExecStart=ExecStart=/usr/bin/dotnet /home/cncnet-server/cncnet-server.dll --name "NewServer" --masterpassword "PW" --maintpw "PW" --maxclients 500
+ExecStart=/usr/bin/dotnet /home/cncnet-server/cncnet-server.dll --name "NewServer" --masterpassword "PW" --maintpw "PW" --maxclients 500
 SyslogIdentifier=CnCNet-Server
 User=cncnet-server
 Restart=always
