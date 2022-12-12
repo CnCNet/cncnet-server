@@ -8,17 +8,18 @@ internal static class RootCommandBuilder
 {
     public static RootCommand Build()
     {
-        var nameOption = new Option<string>("--name", "Name of the server") { IsRequired = true };
-        var maxClientsOption = new Option<int>("--maxclients", () => 200, "Maximum clients allowed on the tunnel server");
-        var ipLimitOption = new Option<int>("--iplimit", () => 8, "Maximum clients allowed per IP address");
-        var tunnelPortOption = new Option<int>(new[] { "--tunnelport", "--port" }, () => 50001, "Port used for the V3 tunnel server");
-        var tunnelV2PortOption = new Option<int>(new[] { "--tunnelv2port", "--portv2" }, () => 50000, "Port used for the V2 tunnel server");
-        var announceIpV6Option = new Option<bool>(new[] { "--announceipv6", "--ipv6" }, () => false, "Announce IPv6 address to master server");
-        var announceIpV4Option = new Option<bool>(new[] { "--announceipv4", "--ipv4" }, () => true, "Announce IPv4 address to master server");
-        var maxPacketSizeOption = new Option<int>(new[] { "--maxpacketsize", "--packet" }, () => 2048, "Maximum accepted packet size");
-        var maxPingsGlobalOption = new Option<ushort>(new[] { "--maxpingsglobal", "--pings" }, () => 1024, "Maximum accepted ping requests globally");
-        var maxPingsPerIpOption = new Option<ushort>(new[] { "--maxpingsperIp", "--pingsip" }, () => 20, "Maximum accepted ping requests per IP");
-        var masterAnnounceIntervalOption = new Option<ushort>(new[] { "--masterannounceinterval", "--announceinterval" }, () => 60, "Master server announce interval in seconds");
+        var nameOption = new Option<string>(new[] { "--name", "--n" }, "Name of the server") { IsRequired = true };
+        var maxClientsOption = new Option<int>(new[] { "--maxclients", "--m" }, () => 200, "Maximum clients allowed on the tunnel server");
+        var ipLimitOption = new Option<int>(new[] { "--iplimit", "--i" }, () => 8, "Maximum clients allowed per IP address");
+        var tunnelPortOption = new Option<int>(new[] { "--tunnelport", "--p" }, () => 50001, "Port used for the V3 tunnel server");
+        var tunnelV2PortOption = new Option<int>(new[] { "--tunnelv2port", "--p2" }, () => 50000, "Port used for the V2 tunnel server");
+        var announceIpV6Option = new Option<bool>(new[] { "--announceipv6", "--6" }, () => true, "Announce IPv6 address to master server");
+        var announceIpV4Option = new Option<bool>(new[] { "--announceipv4", "--4" }, () => true, "Announce IPv4 address to master server");
+        var maxPacketSizeOption = new Option<int>(new[] { "--maxpacketsize", "--mps" }, () => 2048, "Maximum accepted packet size");
+        var maxPingsGlobalOption = new Option<ushort>(new[] { "--maxpingsglobal", "--mpg" }, () => 1024, "Maximum accepted ping requests globally");
+        var maxPingsPerIpOption = new Option<ushort>(new[] { "--maxpingsperip", "--mpi" }, () => 20, "Maximum accepted ping requests per IP");
+        var masterAnnounceIntervalOption = new Option<ushort>(new[] { "--masterannounceinterval", "--ai" }, () => 60, "Master server announce interval in seconds");
+        var clientTimeoutOption = new Option<int>(new[] { "--clienttimeout", "--c" }, () => 60, "Client timeout in seconds");
 
         nameOption.AddValidator(result =>
         {
@@ -46,6 +47,13 @@ internal static class RootCommandBuilder
             if (result.GetValueOrDefault<int>() < maxPacketSizeLimit)
                 result.ErrorMessage = $"{nameof(ServiceOptions.MaxPacketSize)} minimum is {maxPacketSizeLimit}";
         });
+        clientTimeoutOption.AddValidator(result =>
+        {
+            const int minClientTimeout = 30;
+
+            if (result.GetValueOrDefault<int>() < minClientTimeout)
+                result.ErrorMessage = $"{nameof(ServiceOptions.ClientTimeout)} minimum is {minClientTimeout}";
+        });
         tunnelPortOption.AddValidator(ValidatePort);
         tunnelV2PortOption.AddValidator(ValidatePort);
         announceIpV6Option.AddValidator(result => ValidateIpAnnounce(result, Socket.OSSupportsIPv6));
@@ -57,23 +65,24 @@ internal static class RootCommandBuilder
             tunnelPortOption,
             tunnelV2PortOption,
             maxClientsOption,
-            new Option<bool>(new[] { "--nomasterannounce", "--nomaster" }, () => false, "Don't register to master"),
-            new Option<string?>(new[] { "--masterpassword", "--masterpw" }, () => null, "Master password"),
-            new Option<string?>(new[] { "--maintenancepassword", "--maintpw" }, () => null, "Maintenance password"),
-            new Option<Uri>(new[] { "--masterserverurl", "--master" }, () => new($"{Uri.UriSchemeHttps}://cncnet.org/master-announce"), "Master server URL"),
+            new Option<bool>(new[] { "--nomasterannounce", "--nm" }, () => false, "Don't register to master"),
+            new Option<string?>(new[] { "--masterpassword", "--masp" }, () => null, "Master password"),
+            new Option<string?>(new[] { "--maintenancepassword", "--maip" }, () => null, "Maintenance password"),
+            new Option<Uri>(new[] { "--masterserverurl", "--mu" }, () => new($"{Uri.UriSchemeHttps}://cncnet.org/master-announce"), "Master server URL"),
             ipLimitOption,
-            new Option<bool>(new[] { "--nopeertopeer", "--nop2p" }, () => false, "Disable NAT traversal ports (8054, 3478 UDP)"),
-            new Option<bool>(new[] { "--tunnelv3enabled", "--tunnelv3" }, () => true, "Start a V3 tunnel server"),
-            new Option<bool>(new[] { "--tunnelv2enabled", "--tunnelv2" }, () => true, "Start a V2 tunnel server"),
-            new Option<LogLevel>("--serverloglevel", () => LogLevel.Information, "CnCNet server messages log level"),
-            new Option<LogLevel>("--systemloglevel", () => LogLevel.Warning, "Low level system messages log level"),
+            new Option<bool>(new[] { "--nopeertopeer", "--np" }, () => false, "Disable STUN NAT traversal server (UDP 8054 & 3478)"),
+            new Option<bool>(new[] { "--tunnelv3enabled", "--3" }, () => true, "Start a V3 tunnel server"),
+            new Option<bool>(new[] { "--tunnelv2enabled", "--2" }, () => true, "Start a V2 tunnel server"),
+            new Option<LogLevel>(new[] { "--serverloglevel", "--sel" }, () => LogLevel.Information, "CnCNet server messages log level"),
+            new Option<LogLevel>(new[] { "--systemloglevel", "--syl" }, () => LogLevel.Warning, "Low level system messages log level"),
             announceIpV6Option,
             announceIpV4Option,
-            new Option<bool>(new[] { "--tunnelv2https", "--https" }, () => false, $"Use {Uri.UriSchemeHttps} Tunnel V2 web server"),
+            new Option<bool>(new[] { "--tunnelv2https", "--h" }, () => false, $"Use {Uri.UriSchemeHttps} Tunnel V2 web server"),
             maxPacketSizeOption,
             maxPingsGlobalOption,
             maxPingsPerIpOption,
-            masterAnnounceIntervalOption
+            masterAnnounceIntervalOption,
+            clientTimeoutOption
         };
 
         rootCommand.Handler = CommandHandler.Create<IHost>(host => host.WaitForShutdownAsync());

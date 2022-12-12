@@ -36,28 +36,34 @@ Usage:
   cncnet-server [options]
 
 Options:
-  --name <name> (REQUIRED)                                Name of the server
-  --port, --tunnelport <tunnelport>                       Port used for the V3 tunnel server [default: 50001]
-  --portv2, --tunnelv2port <tunnelv2port>                 Port used for the V2 tunnel server [default: 50000]
-  --maxclients <maxclients>                               Maximum clients allowed on the tunnel server [default: 200]
-  --nomaster, --nomasterannounce                          Don't register to master [default: False]
-  --masterpassword, --masterpw <masterpassword>           Master password []
-  --maintenancepassword, --maintpw <maintenancepassword>  Maintenance password []
-  --master, --masterserverurl <masterserverurl>           Master server URL [default:
-                                                          https://cncnet.org/master-announce]
-  --iplimit <iplimit>                                     Maximum clients allowed per IP address [default: 8]
-  --nop2p, --nopeertopeer                                 Disable NAT traversal ports (8054, 3478 UDP) [default: False]
-  --tunnelv3, --tunnelv3enabled                           Start a V3 tunnel server [default: True]
-  --tunnelv2, --tunnelv2enabled                           Start a V2 tunnel server [default: True]
-  --serverloglevel                                        CnCNet server messages log level [default: Information]
+  --n, --name <name> (REQUIRED)                            Name of the server
+  --p, --tunnelport <tunnelport>                           Port used for the V3 tunnel server [default: 50001]
+  --p2, --tunnelv2port <tunnelv2port>                      Port used for the V2 tunnel server [default: 50000]
+  --m, --maxclients <maxclients>                           Maximum clients allowed on the tunnel server [default: 200]
+  --nm, --nomasterannounce                                 Don't register to master [default: False]
+  --masp, --masterpassword <masterpassword>                Master password []
+  --maintenancepassword, --maip <maintenancepassword>      Maintenance password []
+  --masterserverurl, --mu <masterserverurl>                Master server URL [default:
+                                                           https://cncnet.org/master-announce]
+  --i, --iplimit <iplimit>                                 Maximum clients allowed per IP address [default: 8]
+  --nopeertopeer, --np                                     Disable STUN NAT traversal server (UDP 8054 & 3478)
+                                                           [default: False]
+  --3, --tunnelv3enabled                                   Start a V3 tunnel server [default: True]
+  --2, --tunnelv2enabled                                   Start a V2 tunnel server [default: True]
+  --sel, --serverloglevel                                  CnCNet server messages log level [default: Information]
   <Critical|Debug|Error|Information|None|Trace|Warning>
-  --systemloglevel                                        Low level system messages log level [default: Warning]
+  --syl, --systemloglevel                                  Low level system messages log level [default: Warning]
   <Critical|Debug|Error|Information|None|Trace|Warning>
-  --announceipv6, --ipv6                                  Announce IPv6 address to master server [default: False]
-  --announceipv4, --ipv4                                  Announce IPv4 address to master server [default: True]
-  --https, --tunnelv2https                                Use https Tunnel V2 web server [default: False]
-  --version                                               Show version information
-  -?, -h, --help                                          Show help and usage information
+  --6, --announceipv6                                      Announce IPv6 address to master server [default: True]
+  --4, --announceipv4                                      Announce IPv4 address to master server [default: True]
+  --h, --tunnelv2https                                     Use https Tunnel V2 web server [default: False]
+  --maxpacketsize, --mps <maxpacketsize>                   Maximum accepted packet size [default: 2048]
+  --maxpingsglobal, --mpg <maxpingsglobal>                 Maximum accepted ping requests globally [default: 1024]
+  --maxpingsperip, --mpi <maxpingsperip>                   Maximum accepted ping requests per IP [default: 20]
+  --ai, --masterannounceinterval <masterannounceinterval>  Master server announce interval in seconds [default: 60]
+  --c, --clienttimeout <clienttimeout>                     Client timeout in seconds [default: 60]
+  --version                                                Show version information
+  -?, -h, --help                                           Show help and usage information
 ```
 
 ### Start from console
@@ -123,7 +129,7 @@ Description=CnCNet Tunnel Server
 [Service]
 Type=notify
 WorkingDirectory=/home/cncnet-server
-ExecStart=/usr/bin/dotnet /home/cncnet-server/cncnet-server.dll --name "NewServer" --masterpassword "PW" --maintpw "PW" --maxclients 500
+ExecStart=/usr/bin/dotnet /home/cncnet-server/cncnet-server.dll --n "NewServer" --masp "PW" --maip "PW" --m 250
 SyslogIdentifier=CnCNet-Server
 User=cncnet-server
 Restart=always

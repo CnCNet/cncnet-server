@@ -43,4 +43,6 @@ internal sealed record ServiceOptions
     public ushort MaxPingsPerIp { get; set; }
 
     public ushort MasterAnnounceInterval { get; set; }
+
+    public int ClientTimeout { get; set; }
 }

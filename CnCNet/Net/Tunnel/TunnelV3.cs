@@ -115,7 +115,7 @@ internal sealed class TunnelV3 : Tunnel
                         if (Logger.IsEnabled(LogLevel.Information))
                         {
                             Logger.LogInfo(
-                                FormattableString.Invariant($"{DateTimeOffset.Now} New V{Version} client from {remoteEp}, ") +
+                                FormattableString.Invariant($"{DateTimeOffset.Now} Reconnected V{Version} client from {remoteEp}, ") +
                                 FormattableString.Invariant($"{Mappings.Count} clients from ") +
                                 FormattableString.Invariant($"{Mappings.Values.Select(q => q.RemoteEp?.Address)
                                     .Where(q => q is not null).Distinct().Count()} IPs."));
@@ -126,8 +126,8 @@ internal sealed class TunnelV3 : Tunnel
                         if (Logger.IsEnabled(LogLevel.Debug))
                         {
                             Logger.LogDebug(
-                                FormattableString.Invariant($"V{Version} client {remoteEp}") +
-                                FormattableString.Invariant($" did not match {sender.RemoteEp}."));
+                                FormattableString.Invariant($"V{Version} client {remoteEp} denied {sender.TimedOut}") +
+                                FormattableString.Invariant($" {MaintenanceModeEnabled} {remoteEp.Address} {sender.RemoteEp}."));
                         }
 
                         return;
@@ -141,7 +141,7 @@ internal sealed class TunnelV3 : Tunnel
                 if (Mappings.Count >= ServiceOptions.Value.MaxClients || MaintenanceModeEnabled || !IsNewConnectionAllowed(remoteEp.Address))
                     return;
 
-                sender = new(new(remoteEp.Address, remoteEp.Port));
+                sender = new(ServiceOptions.Value.ClientTimeout, new(remoteEp.Address, remoteEp.Port));
 
                 Mappings.Add(senderId, sender);
 

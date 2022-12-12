@@ -2,7 +2,7 @@
   "profiles": {
     "cncnet-server": {
       "commandName": "Project",
-      "commandLineArgs": "--name DEVServer --port 33333 --portv2 22222 --serverloglevel Debug"
+      "commandLineArgs": "--name \"DEV Test Server\" --p 33333 --p2 22222 --serverloglevel Debug --maxclients 250"
     },
     "WSL": {
       "commandName": "WSL2",

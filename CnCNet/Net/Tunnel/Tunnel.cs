@@ -10,13 +10,13 @@ internal abstract class Tunnel : IAsyncDisposable
     private const int PingRequestPacketSize = 50;
     private const int PingResponsePacketSize = 12;
 
-    protected SemaphoreSlim? MappingsSemaphoreSlim;
-
     private readonly IHttpClientFactory httpClientFactory;
 
     private System.Timers.Timer? heartbeatTimer;
     private Dictionary<int, int>? pingCounter;
     private IPAddress? secondaryIpAddress;
+
+    protected SemaphoreSlim? MappingsSemaphoreSlim;
 
     protected Tunnel(ILogger logger, IOptions<ServiceOptions> serviceOptions, IHttpClientFactory httpClientFactory)
     {

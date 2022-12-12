@@ -288,7 +288,7 @@ internal sealed class TunnelV2 : Tunnel
 
                     clients--;
 
-                    Mappings.Add((uint)clientId, new());
+                    Mappings.Add((uint)clientId, new(ServiceOptions.Value.ClientTimeout));
                     clientIds.Add(clientId);
                 }
             }
