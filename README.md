@@ -86,11 +86,12 @@ sudo apt-get update && \
 ```
 
 ```
-wget <cncnet-server.zip>
+wget <cncnet-server-linux-x64.zip>
 ```
 
 ```
-unzip -d cncnet-server <cncnet-server.zip>
+unzip -d cncnet-server <cncnet-server-linux-x64.zip
+.zip>
 ```
 
 ```
@@ -110,7 +111,7 @@ cd /home/cncnet-server/
 ```
 
 ```
-chmod +x cncnet-server.dll
+chmod +x cncnet-server
 ```
 
 ```
@@ -129,7 +130,7 @@ Description=CnCNet Tunnel Server
 [Service]
 Type=notify
 WorkingDirectory=/home/cncnet-server
-ExecStart=/usr/bin/dotnet /home/cncnet-server/cncnet-server.dll --n "NewServer" --masp "PW" --maip "PW" --m 250
+ExecStart=/home/cncnet-server/cncnet-server --n "NewServer" --masp "PW" --maip "PW" --m 250
 SyslogIdentifier=CnCNet-Server
 User=cncnet-server
 Restart=always
