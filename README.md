@@ -90,8 +90,7 @@ wget <cncnet-server-linux-x64.zip>
 ```
 
 ```
-unzip -d cncnet-server <cncnet-server-linux-x64.zip
-.zip>
+unzip -d cncnet-server <cncnet-server-linux-x64.zip>
 ```
 
 ```
