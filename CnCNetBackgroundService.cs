@@ -110,15 +110,14 @@ internal sealed class CnCNetBackgroundService : BackgroundService
         try
         {
             await whenAllTask.ConfigureAwait(false);
-            return;
         }
         catch
         {
-            // Intentionally left empty
-        }
+            if (whenAllTask.Exception is null)
+                throw;
 
-        if (whenAllTask.Exception is not null)
             throw whenAllTask.Exception;
+        }
     }
 
     private Task CreateLongRunningTask(Func<Task> task, IAsyncDisposable disposable, CancellationToken cancellationToken)

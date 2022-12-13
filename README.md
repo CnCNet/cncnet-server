@@ -75,7 +75,19 @@ cncnet-server --name NewServer
 ### Install as a service on Windows (using PowerShell)
 
 ```
-New-Service -BinaryPathName '"C:\cncnet-server\cncnet-server.exe --name NewServer"' -StartupType "Automatic"
+Download <cncnet-server-win-x64.zip>
+```
+
+```
+Extract to e.g. C:\cncnet-server\
+```
+
+```
+New-Service -Name CnCNetServer -BinaryPathName '"C:\cncnet-server\cncnet-server.exe" --name "NewServer"' -StartupType "Automatic" -DisplayName "CnCNet Tunnel Server" -Description "CnCNet Tunnel Server"
+```
+
+```
+Start-Service CnCNetServer
 ```
 
 ### Install as a service on Linux (Ubuntu example)
