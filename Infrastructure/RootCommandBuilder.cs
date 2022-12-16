@@ -73,7 +73,7 @@ internal static class RootCommandBuilder
             new Option<bool>(new[] { "--nopeertopeer", "--np" }, () => false, "Disable STUN NAT traversal server (UDP 8054 & 3478)"),
             new Option<bool>(new[] { "--tunnelv3enabled", "--3" }, () => true, "Start a V3 tunnel server"),
             new Option<bool>(new[] { "--tunnelv2enabled", "--2" }, () => true, "Start a V2 tunnel server"),
-            new Option<LogLevel>(new[] { "--serverloglevel", "--sel" }, () => LogLevel.Information, "CnCNet server messages log level"),
+            new Option<LogLevel>(new[] { "--serverloglevel", "--sel" }, () => LogLevel.Warning, "CnCNet server messages log level"),
             new Option<LogLevel>(new[] { "--systemloglevel", "--syl" }, () => LogLevel.Warning, "Low level system messages log level"),
             announceIpV6Option,
             announceIpV4Option,

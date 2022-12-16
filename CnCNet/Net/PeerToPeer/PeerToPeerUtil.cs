@@ -1,6 +1,7 @@
 ﻿namespace CnCNetServer;
 
 using System.Buffers;
+using System.Collections.Concurrent;
 
 internal sealed class PeerToPeerUtil : IAsyncDisposable
 {
@@ -9,9 +10,8 @@ internal sealed class PeerToPeerUtil : IAsyncDisposable
     private const int MaxConnectionsGlobal = 5000; // Max amount of different ips sending requests during one CounterResetInterval period
     private const short StunId = 26262;
 
-    private readonly Dictionary<int, int> connectionCounter = new(MaxConnectionsGlobal);
+    private readonly ConcurrentDictionary<int, int> connectionCounter = new();
     private readonly System.Timers.Timer connectionCounterTimer = new(CounterResetInterval);
-    private readonly SemaphoreSlim connectionCounterSemaphoreSlim = new(1, 1);
     private readonly ILogger logger;
 
     public PeerToPeerUtil(ILogger<PeerToPeerUtil> logger)
@@ -31,7 +31,6 @@ internal sealed class PeerToPeerUtil : IAsyncDisposable
 
     public ValueTask DisposeAsync()
     {
-        connectionCounterSemaphoreSlim.Dispose();
         connectionCounterTimer.Dispose();
 
         return ValueTask.CompletedTask;
@@ -48,16 +47,7 @@ internal sealed class PeerToPeerUtil : IAsyncDisposable
             if (cancellationToken.IsCancellationRequested)
                 connectionCounterTimer.Enabled = false;
 
-            await connectionCounterSemaphoreSlim.WaitAsync(cancellationToken).ConfigureAwait(false);
-
-            try
-            {
-                connectionCounter.Clear();
-            }
-            finally
-            {
-                connectionCounterSemaphoreSlim.Release();
-            }
+            connectionCounter.Clear();
         }
         catch (OperationCanceledException)
         {
@@ -114,14 +104,11 @@ internal sealed class PeerToPeerUtil : IAsyncDisposable
     {
         try
         {
-            logger.LogDebug(
-                FormattableString.Invariant($"P2P client {remoteEp} connected."));
+            if (logger.IsEnabled(LogLevel.Debug))
+                logger.LogDebug(FormattableString.Invariant($"P2P client {remoteEp} connected."));
 
-            if (IsInvalidRemoteIpEndPoint(remoteEp)
-                || await IsConnectionLimitReachedAsync(remoteEp.Address, cancellationToken).ConfigureAwait(false))
-            {
+            if (IsInvalidRemoteIpEndPoint(remoteEp) || IsConnectionLimitReached(remoteEp.Address))
                 return;
-            }
 
             if (IPAddress.NetworkToHostOrder(BitConverter.ToInt16(receiveBuffer.Span)) != StunId)
                 return;
@@ -157,27 +144,18 @@ internal sealed class PeerToPeerUtil : IAsyncDisposable
         }
     }
 
-    private async ValueTask<bool> IsConnectionLimitReachedAsync(IPAddress address, CancellationToken cancellationToken)
+    private bool IsConnectionLimitReached(IPAddress address)
     {
-        await connectionCounterSemaphoreSlim.WaitAsync(cancellationToken).ConfigureAwait(false);
+        if (connectionCounter.Count >= MaxConnectionsGlobal)
+            return true;
 
-        try
-        {
-            if (connectionCounter.Count >= MaxConnectionsGlobal)
-                return true;
+        int ipHash = address.GetHashCode();
 
-            int ipHash = address.GetHashCode();
+        if (connectionCounter.TryGetValue(ipHash, out int count) && count >= MaxRequestsPerIp)
+            return true;
 
-            if (connectionCounter.TryGetValue(ipHash, out int count) && count >= MaxRequestsPerIp)
-                return true;
+        connectionCounter[ipHash] = ++count;
 
-            connectionCounter[ipHash] = ++count;
-
-            return false;
-        }
-        finally
-        {
-            connectionCounterSemaphoreSlim.Release();
-        }
+        return false;
     }
 }

@@ -1,6 +1,7 @@
 ﻿namespace CnCNetServer;
 
 using System.Buffers;
+using System.Collections.Concurrent;
 using System.Net.NetworkInformation;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
@@ -11,12 +12,10 @@ internal abstract class Tunnel : IAsyncDisposable
     private const int PingResponsePacketSize = 12;
 
     private readonly IHttpClientFactory httpClientFactory;
+    private readonly ConcurrentDictionary<int, int>? pingCounter = new();
 
     private System.Timers.Timer? heartbeatTimer;
-    private Dictionary<int, int>? pingCounter;
     private IPAddress? secondaryIpAddress;
-
-    protected SemaphoreSlim? MappingsSemaphoreSlim;
 
     protected Tunnel(ILogger logger, IOptions<ServiceOptions> serviceOptions, IHttpClientFactory httpClientFactory)
     {
@@ -37,20 +36,16 @@ internal abstract class Tunnel : IAsyncDisposable
 
     protected bool MaintenanceModeEnabled { get; set; }
 
-    protected Dictionary<int, int>? ConnectionCounter { get; private set; }
+    protected ConcurrentDictionary<int, int>? ConnectionCounter { get; } = new();
 
-    protected Dictionary<uint, TunnelClient>? Mappings { get; private set; }
+    protected ConcurrentDictionary<uint, TunnelClient>? Mappings { get; } = new();
 
     protected Socket? Client { get; private set; }
 
     public virtual async Task StartAsync(CancellationToken cancellationToken)
     {
-        Mappings = new(ServiceOptions.Value.MaxClients);
-        ConnectionCounter = new(ServiceOptions.Value.MaxClients);
-        MappingsSemaphoreSlim = new(1, 1);
         Client = new(SocketType.Dgram, ProtocolType.Udp);
         heartbeatTimer = new(TimeSpan.FromSeconds(ServiceOptions.Value.MasterAnnounceInterval));
-        pingCounter = new(ServiceOptions.Value.MaxPingsGlobal);
 
         await StartHeartbeatAsync(cancellationToken).ConfigureAwait(false);
 
@@ -94,45 +89,35 @@ internal abstract class Tunnel : IAsyncDisposable
     {
         Client?.Dispose();
         heartbeatTimer?.Dispose();
-        MappingsSemaphoreSlim?.Dispose();
 
         return ValueTask.CompletedTask;
     }
 
-    protected virtual async ValueTask<int> CleanupConnectionsAsync(CancellationToken cancellationToken)
+    protected virtual int CleanupConnections()
     {
-        int clients;
-
-        await MappingsSemaphoreSlim!.WaitAsync(cancellationToken).ConfigureAwait(false);
-
-        try
+        foreach (KeyValuePair<uint, TunnelClient> mapping in Mappings!.Where(x => x.Value.TimedOut).ToList())
         {
-            foreach (KeyValuePair<uint, TunnelClient> mapping in Mappings!.Where(x => x.Value.TimedOut).ToList())
+            CleanupConnection(mapping.Value);
+            Mappings!.Remove(mapping.Key, out _);
+
+            if (Logger.IsEnabled(LogLevel.Information))
             {
-                CleanupConnection(mapping.Value);
-
-                Mappings!.Remove(mapping.Key);
-
-                if (Logger.IsEnabled(LogLevel.Information))
-                {
-                    Logger.LogInfo(
-                        FormattableString.Invariant($"{DateTimeOffset.Now} Removed V{Version} client from ") +
-                        FormattableString.Invariant($"{mapping.Value.RemoteEp?.ToString() ?? "(not connected)"}, ") +
-                        FormattableString.Invariant($"{Mappings.Count} clients from {Mappings.Values
-                            .Select(q => q.RemoteEp?.Address).Where(q => q is not null).Distinct().Count()} IPs."));
-                }
+                Logger.LogInfo(
+                    FormattableString.Invariant($"{DateTimeOffset.Now} Removed V{Version} client from ") +
+                    FormattableString.Invariant($"{mapping.Value.RemoteEp?.ToString() ?? "(not connected)"}, "));
             }
 
-            clients = Mappings!.Count;
-
-            pingCounter!.Clear();
+            if (Logger.IsEnabled(LogLevel.Debug))
+            {
+                Logger.LogDebug(
+                    FormattableString.Invariant($"{Mappings!.Count} clients from {Mappings.Values
+                        .Select(q => q.RemoteEp?.Address).Where(q => q is not null).Distinct().Count()} IPs."));
+            }
         }
-        finally
-        {
-            MappingsSemaphoreSlim.Release();
-        }
 
-        return clients;
+        pingCounter!.Clear();
+
+        return Mappings!.Count;
     }
 
     protected virtual void CleanupConnection(TunnelClient tunnelClient)
@@ -322,7 +307,7 @@ internal abstract class Tunnel : IAsyncDisposable
                 return;
             }
 
-            int clients = await CleanupConnectionsAsync(cancellationToken).ConfigureAwait(false);
+            int clients = CleanupConnections();
 
             if (!ServiceOptions.Value.NoMasterAnnounce)
                 await SendMasterServerHeartbeatAsync(clients, cancellationToken).ConfigureAwait(false);
