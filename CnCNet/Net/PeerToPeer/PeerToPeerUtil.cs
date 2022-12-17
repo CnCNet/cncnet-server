@@ -5,13 +5,13 @@ using System.Collections.Concurrent;
 
 internal sealed class PeerToPeerUtil : IAsyncDisposable
 {
-    private const int CounterResetInterval = 60 * 1000; // Reset counter every X ms
+    private const int CounterResetInterval = 60; // Reset counter every X s
     private const int MaxRequestsPerIp = 20; // Max requests during one CounterResetInterval period
     private const int MaxConnectionsGlobal = 5000; // Max amount of different ips sending requests during one CounterResetInterval period
     private const short StunId = 26262;
 
     private readonly ConcurrentDictionary<int, int> connectionCounter = new();
-    private readonly System.Timers.Timer connectionCounterTimer = new(CounterResetInterval);
+    private readonly PeriodicTimer connectionCounterTimer = new(TimeSpan.FromSeconds(CounterResetInterval));
     private readonly ILogger logger;
 
     public PeerToPeerUtil(ILogger<PeerToPeerUtil> logger)
@@ -22,9 +22,8 @@ internal sealed class PeerToPeerUtil : IAsyncDisposable
     public Task StartAsync(int listenPort, CancellationToken cancellationToken)
     {
 #pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
-        connectionCounterTimer.Elapsed += (_, _) => ResetConnectionCounterAsync(cancellationToken);
+        ResetConnectionCounterAsync(cancellationToken);
 #pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
-        connectionCounterTimer.Enabled = true;
 
         return StartReceiverAsync(listenPort, cancellationToken);
     }
@@ -44,10 +43,10 @@ internal sealed class PeerToPeerUtil : IAsyncDisposable
     {
         try
         {
-            if (cancellationToken.IsCancellationRequested)
-                connectionCounterTimer.Enabled = false;
-
-            connectionCounter.Clear();
+            while (await connectionCounterTimer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false))
+            {
+                connectionCounter.Clear();
+            }
         }
         catch (OperationCanceledException)
         {
