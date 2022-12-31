@@ -68,7 +68,7 @@ internal static class RootCommandBuilder
             new Option<bool>(new[] { "--nomasterannounce", "--nm" }, () => false, "Don't register to master"),
             new Option<string?>(new[] { "--masterpassword", "--masp" }, () => null, "Master password"),
             new Option<string?>(new[] { "--maintenancepassword", "--maip" }, () => null, "Maintenance password"),
-            new Option<Uri>(new[] { "--masterserverurl", "--mu" }, () => new($"{Uri.UriSchemeHttps}://cncnet.org/master-announce"), "Master server URL"),
+            new Option<Uri>(new[] { "--masterserverurl", "--mu" }, () => new($"{Uri.UriSchemeHttps}://cncnet.org/api/v1/master-announce"), "Master server URL"),
             ipLimitOption,
             new Option<bool>(new[] { "--nopeertopeer", "--np" }, () => false, "Disable STUN NAT traversal server (UDP 8054 & 3478)"),
             new Option<bool>(new[] { "--tunnelv3enabled", "--3" }, () => true, "Start a V3 tunnel server"),
