@@ -4,6 +4,8 @@
 * Cross platform (Windows, Linux, Mac, ...)
 * No admin privileges required to run
 * Supports CnCNet V2 & V3 tunnel protocol
+* Supports CnCNet STUN protocol (for P2P clients)
+* Supports IPv4 & IPv6
 
 ## Versions
 
