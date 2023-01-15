@@ -95,6 +95,9 @@ Start-Service CnCNetServer
 ### Install as a service on Linux (Ubuntu example)
 
 ```
+wget https://packages.microsoft.com/config/ubuntu/22.10/packages-microsoft-prod.deb -O packages-microsoft-prod.deb
+sudo dpkg -i packages-microsoft-prod.deb
+rm packages-microsoft-prod.deb
 sudo apt-get update && \
   sudo apt-get install -y aspnetcore-runtime-7.0
 ```
@@ -159,29 +162,14 @@ WantedBy=multi-user.target
 
 ```
 sudo systemctl daemon-reload
-```
-
-```
 sudo systemctl start cncnet-server.service
 ```
 
 ```
 sudo ufw allow proto tcp from any to any port 50000
-```
-
-```
 sudo ufw allow proto udp from any to any port 50000
-```
-
-```
 sudo ufw allow proto udp from any to any port 50001
-```
-
-```
 sudo ufw allow proto udp from any to any port 3478
-```
-
-```
 sudo ufw allow proto udp from any to any port 8054
 ```
 
