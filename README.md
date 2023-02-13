@@ -9,7 +9,7 @@
 
 ## Versions
 
-* OS specific versions `win-x64` etc.: Use for best performance.
+* OS specific versions `win10-x64` etc.: Use for best performance.
 * Cross platform version `any`: Runs on all supported .NET platforms.
 
 ## How to run/install
@@ -77,7 +77,7 @@ cncnet-server --name NewServer
 ### Install as a service on Windows (using PowerShell)
 
 ```
-Download <cncnet-server-win-x64.zip>
+Download <cncnet-server-win10-x64.zip>
 ```
 
 ```
@@ -103,11 +103,11 @@ sudo apt-get update && \
 ```
 
 ```
-wget <cncnet-server-linux-x64.zip>
+wget <cncnet-server-ubuntu.22.04-x64.zip>
 ```
 
 ```
-unzip -d cncnet-server <cncnet-server-linux-x64.zip>
+unzip -d cncnet-server <cncnet-server-ubuntu.22.04-x64.zip>
 ```
 
 ```

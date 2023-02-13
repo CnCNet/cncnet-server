@@ -24,21 +24,29 @@ jobs:
     - name: Publish
       run: |
         dotnet publish -c Release -p:AssemblyVersion=$env:GitVersion_AssemblySemVer -p:FileVersion=$env:GitVersion_AssemblySemFileVer -p:InformationalVersion=$env:GitVersion_InformationalVersion
-        dotnet publish -c Release -r win-x64 --no-self-contained -p:PublishReadyToRun=true -p:PublishReadyToRunComposite=true -p:PublishSingleFile=true -p:DebugType=embedded -p:AssemblyVersion=$env:GitVersion_AssemblySemVer -p:FileVersion=$env:GitVersion_AssemblySemFileVer -p:InformationalVersion=$env:GitVersion_InformationalVersion
-        dotnet publish -c Release -r win-arm64 --no-self-contained -p:PublishReadyToRun=true -p:PublishReadyToRunComposite=true -p:PublishSingleFile=true -p:DebugType=embedded -p:AssemblyVersion=$env:GitVersion_AssemblySemVer -p:FileVersion=$env:GitVersion_AssemblySemFileVer -p:InformationalVersion=$env:GitVersion_InformationalVersion
+        dotnet publish -c Release -r win10-x64 --no-self-contained -p:PublishReadyToRun=true -p:PublishReadyToRunComposite=true -p:PublishSingleFile=true -p:DebugType=embedded -p:AssemblyVersion=$env:GitVersion_AssemblySemVer -p:FileVersion=$env:GitVersion_AssemblySemFileVer -p:InformationalVersion=$env:GitVersion_InformationalVersion
+        dotnet publish -c Release -r win10-arm64 --no-self-contained -p:PublishReadyToRun=true -p:PublishReadyToRunComposite=true -p:PublishSingleFile=true -p:DebugType=embedded -p:AssemblyVersion=$env:GitVersion_AssemblySemVer -p:FileVersion=$env:GitVersion_AssemblySemFileVer -p:InformationalVersion=$env:GitVersion_InformationalVersion
         dotnet publish -c Release -r linux-x64 --no-self-contained -p:PublishReadyToRun=true -p:PublishReadyToRunComposite=true -p:PublishSingleFile=true -p:DebugType=embedded -p:AssemblyVersion=$env:GitVersion_AssemblySemVer -p:FileVersion=$env:GitVersion_AssemblySemFileVer -p:InformationalVersion=$env:GitVersion_InformationalVersion
         dotnet publish -c Release -r linux-arm64 --no-self-contained -p:PublishReadyToRun=true -p:PublishReadyToRunComposite=true -p:PublishSingleFile=true -p:DebugType=embedded -p:AssemblyVersion=$env:GitVersion_AssemblySemVer -p:FileVersion=$env:GitVersion_AssemblySemFileVer -p:InformationalVersion=$env:GitVersion_InformationalVersion
-        dotnet publish -c Release -r osx-x64 --no-self-contained -p:PublishReadyToRun=true -p:PublishReadyToRunComposite=true -p:PublishSingleFile=true -p:DebugType=embedded -p:AssemblyVersion=$env:GitVersion_AssemblySemVer -p:FileVersion=$env:GitVersion_AssemblySemFileVer -p:InformationalVersion=$env:GitVersion_InformationalVersion
-        dotnet publish -c Release -r osx-arm64 --no-self-contained -p:PublishReadyToRun=true -p:PublishReadyToRunComposite=true -p:PublishSingleFile=true -p:DebugType=embedded -p:AssemblyVersion=$env:GitVersion_AssemblySemVer -p:FileVersion=$env:GitVersion_AssemblySemFileVer -p:InformationalVersion=$env:GitVersion_InformationalVersion
+        dotnet publish -c Release -r osx.13-x64 --no-self-contained -p:PublishReadyToRun=true -p:PublishReadyToRunComposite=true -p:PublishSingleFile=true -p:DebugType=embedded -p:AssemblyVersion=$env:GitVersion_AssemblySemVer -p:FileVersion=$env:GitVersion_AssemblySemFileVer -p:InformationalVersion=$env:GitVersion_InformationalVersion
+        dotnet publish -c Release -r osx.13-arm64 --no-self-contained -p:PublishReadyToRun=true -p:PublishReadyToRunComposite=true -p:PublishSingleFile=true -p:DebugType=embedded -p:AssemblyVersion=$env:GitVersion_AssemblySemVer -p:FileVersion=$env:GitVersion_AssemblySemFileVer -p:InformationalVersion=$env:GitVersion_InformationalVersion
+        dotnet publish -c Release -r ubuntu.22.04-x64 --no-self-contained -p:PublishReadyToRun=true -p:PublishReadyToRunComposite=true -p:PublishSingleFile=true -p:DebugType=embedded -p:AssemblyVersion=$env:GitVersion_AssemblySemVer -p:FileVersion=$env:GitVersion_AssemblySemFileVer -p:InformationalVersion=$env:GitVersion_InformationalVersion
+        dotnet publish -c Release -r ubuntu.22.04-arm64 --no-self-contained -p:PublishReadyToRun=true -p:PublishReadyToRunComposite=true -p:PublishSingleFile=true -p:DebugType=embedded -p:AssemblyVersion=$env:GitVersion_AssemblySemVer -p:FileVersion=$env:GitVersion_AssemblySemFileVer -p:InformationalVersion=$env:GitVersion_InformationalVersion
+        dotnet publish -c Release -r fedora.38-x64 --no-self-contained -p:PublishReadyToRun=true -p:PublishReadyToRunComposite=true -p:PublishSingleFile=true -p:DebugType=embedded -p:AssemblyVersion=$env:GitVersion_AssemblySemVer -p:FileVersion=$env:GitVersion_AssemblySemFileVer -p:InformationalVersion=$env:GitVersion_InformationalVersion
+        dotnet publish -c Release -r fedora.38-arm64 --no-self-contained -p:PublishReadyToRun=true -p:PublishReadyToRunComposite=true -p:PublishSingleFile=true -p:DebugType=embedded -p:AssemblyVersion=$env:GitVersion_AssemblySemVer -p:FileVersion=$env:GitVersion_AssemblySemFileVer -p:InformationalVersion=$env:GitVersion_InformationalVersion
     - name: Zip
       run: |
         7z a -r ${{ format('cncnet-server-v{0}-net7.0-any.zip', env.GitVersion_SemVer) }} ./bin/Release/net7.0/publish/*
-        7z a -r ${{ format('cncnet-server-v{0}-net7.0-win-x64.zip', env.GitVersion_SemVer) }} ./bin/Release/net7.0/win-x64/publish/*
-        7z a -r ${{ format('cncnet-server-v{0}-net7.0-win-arm64.zip', env.GitVersion_SemVer) }} ./bin/Release/net7.0/win-arm64/publish/*
+        7z a -r ${{ format('cncnet-server-v{0}-net7.0-win10-x64.zip', env.GitVersion_SemVer) }} ./bin/Release/net7.0/win10-x64/publish/*
+        7z a -r ${{ format('cncnet-server-v{0}-net7.0-win10-arm64.zip', env.GitVersion_SemVer) }} ./bin/Release/net7.0/win10-arm64/publish/*
         7z a -r ${{ format('cncnet-server-v{0}-net7.0-linux-x64.zip', env.GitVersion_SemVer) }} ./bin/Release/net7.0/linux-x64/publish/*
         7z a -r ${{ format('cncnet-server-v{0}-net7.0-linux-arm64.zip', env.GitVersion_SemVer) }} ./bin/Release/net7.0/linux-arm64/publish/*
-        7z a -r ${{ format('cncnet-server-v{0}-net7.0-osx-x64.zip', env.GitVersion_SemVer) }} ./bin/Release/net7.0/osx-x64/publish/*
-        7z a -r ${{ format('cncnet-server-v{0}-net7.0-osx-arm64.zip', env.GitVersion_SemVer) }} ./bin/Release/net7.0/osx-arm64/publish/*
+        7z a -r ${{ format('cncnet-server-v{0}-net7.0-osx.13-x64.zip', env.GitVersion_SemVer) }} ./bin/Release/net7.0/osx.13-x64/publish/*
+        7z a -r ${{ format('cncnet-server-v{0}-net7.0-osx.13-arm64.zip', env.GitVersion_SemVer) }} ./bin/Release/net7.0/osx.13-arm64/publish/*
+        7z a -r ${{ format('cncnet-server-v{0}-net7.0-ubuntu.22.04-x64.zip', env.GitVersion_SemVer) }} ./bin/Release/net7.0/ubuntu.22.04-x64/publish/*
+        7z a -r ${{ format('cncnet-server-v{0}-net7.0-ubuntu.22.04-arm64.zip', env.GitVersion_SemVer) }} ./bin/Release/net7.0/ubuntu.22.04-arm64/publish/*
+        7z a -r ${{ format('cncnet-server-v{0}-net7.0-fedora.38-x64.zip', env.GitVersion_SemVer) }} ./bin/Release/net7.0/fedora.38-x64/publish/*
+        7z a -r ${{ format('cncnet-server-v{0}-net7.0-fedora.38-arm64.zip', env.GitVersion_SemVer) }} ./bin/Release/net7.0/fedora.38-arm64/publish/*
     - name: Prerelease
       if: ${{ env.GitVersion_PreReleaseTag != '' }}
       run: gh release create ${{ format('v{0}', env.GitVersion_SemVer) }} (get-item *.zip) --generate-notes --target ${{ github.sha }} --prerelease
