@@ -46,20 +46,17 @@ internal abstract class Tunnel : IAsyncDisposable
     {
         Client = new(SocketType.Dgram, ProtocolType.Udp);
         heartbeatTimer = new(TimeSpan.FromSeconds(ServiceOptions.Value.MasterAnnounceInterval));
-
 #pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
+#pragma warning disable IDE0058 // Expression value is never used
         StartHeartbeatAsync(cancellationToken);
+#pragma warning restore IDE0058 // Expression value is never used
 #pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
-
         var remoteEp = new IPEndPoint(IPAddress.Any, 0);
 
         Client.Bind(new IPEndPoint(IPAddress.IPv6Any, Port));
 
         if (Logger.IsEnabled(LogLevel.Information))
-        {
-            Logger.LogInfo(FormattableString.Invariant(
-                $"{DateTimeOffset.Now} V{Version} Tunnel UDP server started on port {Port}."));
-        }
+            Logger.LogInfo(FormattableString.Invariant($"V{Version} Tunnel UDP server started on port {Port}."));
 
         while (!cancellationToken.IsCancellationRequested)
         {
@@ -79,11 +76,14 @@ internal abstract class Tunnel : IAsyncDisposable
                 continue;
             }
 
-#pragma warning disable CS4014
+#pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
+#pragma warning disable IDE0058 // Expression value is never used
             DoReceiveAsync(
-                buffer[..socketReceiveFromResult.ReceivedBytes], (IPEndPoint)socketReceiveFromResult.RemoteEndPoint,
+                buffer[..socketReceiveFromResult.ReceivedBytes],
+                (IPEndPoint)socketReceiveFromResult.RemoteEndPoint,
                 cancellationToken).ConfigureAwait(false);
-#pragma warning restore CS4014
+#pragma warning restore IDE0058 // Expression value is never used
+#pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
         }
     }
 
@@ -95,75 +95,87 @@ internal abstract class Tunnel : IAsyncDisposable
         return ValueTask.CompletedTask;
     }
 
-    protected virtual int CleanupConnections()
-    {
-        foreach (KeyValuePair<uint, TunnelClient> mapping in Mappings!.Where(x => x.Value.TimedOut).ToList())
-        {
-            CleanupConnection(mapping.Value);
-            Mappings!.Remove(mapping.Key, out _);
-
-            if (Logger.IsEnabled(LogLevel.Information))
-            {
-                Logger.LogInfo(
-                    FormattableString.Invariant($"{DateTimeOffset.Now} Removed V{Version} client from ") +
-                    FormattableString.Invariant($"{mapping.Value.RemoteEp?.ToString() ?? "(not connected)"}, "));
-            }
-
-            if (Logger.IsEnabled(LogLevel.Debug))
-            {
-                Logger.LogDebug(
-                    FormattableString.Invariant($"{Mappings!.Count} clients from {Mappings.Values
-                        .Select(q => q.RemoteEp?.Address).Where(q => q is not null).Distinct().Count()} IPs."));
-            }
-        }
-
-        pingCounter!.Clear();
-
-        return Mappings!.Count;
-    }
-
     protected virtual void CleanupConnection(TunnelClient tunnelClient)
     {
     }
 
-    private async Task DoReceiveAsync(
-        ReadOnlyMemory<byte> buffer, IPEndPoint remoteEp, CancellationToken cancellationToken)
+    protected abstract (uint SenderId, uint ReceiverId) GetClientIds(ReadOnlyMemory<byte> buffer);
+
+    protected abstract bool ValidateClientIds(uint senderId, uint receiverId, ReadOnlyMemory<byte> buffer, IPEndPoint remoteEp);
+
+    protected abstract ValueTask HandlePacketAsync(uint senderId, uint receiverId, ReadOnlyMemory<byte> buffer, IPEndPoint remoteEp, CancellationToken cancellationToken);
+
+    private static IPAddress? GetPublicIpV6Address()
     {
-        try
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            if (buffer.Length < MinimumPacketSize || buffer.Length > ServiceOptions.Value.MaxPacketSize)
-            {
-                if (Logger.IsEnabled(LogLevel.Debug))
-                {
-                    Logger.LogDebug(FormattableString.Invariant($"{DateTimeOffset.Now} V{Version} Tunnel invalid UDP ") +
-                        FormattableString.Invariant($"packet size {buffer.Length}."));
-                }
+            var localIpV6Addresses = GetWindowsIpV6Addresses().ToList();
+            (IPAddress IpAddress, PrefixOrigin PrefixOrigin, SuffixOrigin SuffixOrigin) publicIpV6Address = localIpV6Addresses.FirstOrDefault(
+                  q => q.PrefixOrigin is PrefixOrigin.RouterAdvertisement && q.SuffixOrigin is SuffixOrigin.LinkLayerAddress);
 
-                return;
-            }
+            if (publicIpV6Address.IpAddress is null)
+                publicIpV6Address = localIpV6Addresses.FirstOrDefault(q => q.PrefixOrigin is PrefixOrigin.Dhcp && q.SuffixOrigin is SuffixOrigin.OriginDhcp);
 
-            await ReceiveAsync(buffer, remoteEp, cancellationToken);
+            return publicIpV6Address.IpAddress;
         }
-        catch (OperationCanceledException)
-        {
-            // ignore, shut down signal
-        }
-        catch (Exception ex)
-        {
-            await Logger.LogExceptionDetailsAsync(ex).ConfigureAwait(false);
-        }
+
+        return GetIpV6Addresses().FirstOrDefault();
     }
 
-    protected abstract ValueTask ReceiveAsync(
-        ReadOnlyMemory<byte> buffer, IPEndPoint remoteEp, CancellationToken cancellationToken);
+    [SupportedOSPlatform("windows")]
+    private static IEnumerable<(IPAddress IpAddress, PrefixOrigin PrefixOrigin, SuffixOrigin SuffixOrigin)> GetWindowsIpV6Addresses()
+        => GetIpV6UnicastAddresses()
+        .Select(q => (q.Address, q.PrefixOrigin, q.SuffixOrigin));
 
-    protected async ValueTask<bool> HandlePingRequestAsync(
+    private static IEnumerable<IPAddress> GetIpV6Addresses()
+        => GetIpV6UnicastAddresses()
+        .Select(q => q.Address);
+
+    private static IEnumerable<UnicastIPAddressInformation> GetIpV6UnicastAddresses()
+        => NetworkInterface.GetAllNetworkInterfaces()
+        .Where(q => q.OperationalStatus is OperationalStatus.Up)
+        .Select(q => q.GetIPProperties())
+        .Where(q => q.GatewayAddresses.Count is not 0)
+        .SelectMany(q => q.UnicastAddresses)
+        .Where(q => q.Address.AddressFamily is AddressFamily.InterNetworkV6)
+        .Where(q => q.Address is { IsIPv6SiteLocal: false, IsIPv6UniqueLocal: false, IsIPv6LinkLocal: false });
+
+    private async ValueTask ReceiveAsync(ReadOnlyMemory<byte> buffer, IPEndPoint remoteEp, CancellationToken cancellationToken)
+    {
+        (uint senderId, uint receiverId) = GetClientIds(buffer);
+
+        if (Logger.IsEnabled(LogLevel.Debug))
+        {
+            Logger.LogDebug(
+                FormattableString.Invariant($"V{Version} client {remoteEp} ({senderId} -> {receiverId}) received") +
+                FormattableString.Invariant($" {buffer.Length} bytes."));
+        }
+        else if (Logger.IsEnabled(LogLevel.Trace))
+        {
+            Logger.LogTrace(
+                FormattableString.Invariant($"V{Version} client {remoteEp} ({senderId} -> {receiverId}) received") +
+                FormattableString.Invariant($" {buffer.Length} bytes: {Convert.ToHexString(buffer.Span)}."));
+        }
+
+        if (!ValidateClientIds(senderId, receiverId, buffer, remoteEp))
+            return;
+
+        if (await HandlePingRequestAsync(senderId, receiverId, buffer, remoteEp, cancellationToken).ConfigureAwait(false))
+            return;
+
+        await HandlePacketAsync(senderId, receiverId, buffer, remoteEp, cancellationToken).ConfigureAwait(false);
+
+        if (Logger.IsEnabled(LogLevel.Debug))
+            Logger.LogDebug(FormattableString.Invariant($"V{Version} client {remoteEp} message handled."));
+    }
+
+    private async ValueTask<bool> HandlePingRequestAsync(
         uint senderId, uint receiverId, ReadOnlyMemory<byte> buffer, IPEndPoint remoteEp, CancellationToken cancellationToken)
     {
-        if (senderId != 0 || receiverId != 0)
+        if (senderId is not 0u || receiverId is not 0u)
             return false;
 
-        if (buffer.Length == PingRequestPacketSize)
+        if (buffer.Length is PingRequestPacketSize)
         {
             if (!IsPingLimitReached(remoteEp.Address))
             {
@@ -181,7 +193,7 @@ internal abstract class Tunnel : IAsyncDisposable
                         FormattableString.Invariant($" {Convert.ToHexString(buffer.Span[..PingResponsePacketSize])}."));
                 }
 
-                await Client!.SendToAsync(
+                _ = await Client!.SendToAsync(
                         buffer[..PingResponsePacketSize], SocketFlags.None, remoteEp, cancellationToken)
                     .ConfigureAwait(false);
 
@@ -206,48 +218,40 @@ internal abstract class Tunnel : IAsyncDisposable
         return false;
     }
 
-    private static IPAddress? GetPublicIpV6Address()
+    private async Task DoReceiveAsync(
+        ReadOnlyMemory<byte> buffer, IPEndPoint remoteEp, CancellationToken cancellationToken)
     {
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        try
         {
-            var ipV6Addresses = GetWindowsIpV6Addresses().ToList();
-            (IPAddress IpAddress, PrefixOrigin PrefixOrigin, SuffixOrigin SuffixOrigin) publicIpV6Address = ipV6Addresses.FirstOrDefault(
-                  q => q.PrefixOrigin is PrefixOrigin.RouterAdvertisement && q.SuffixOrigin is SuffixOrigin.LinkLayerAddress);
+            if (buffer.Length < MinimumPacketSize || buffer.Length > ServiceOptions.Value.MaxPacketSize)
+            {
+                if (Logger.IsEnabled(LogLevel.Debug))
+                    Logger.LogDebug(FormattableString.Invariant($"V{Version} Tunnel invalid UDP packet size {buffer.Length}."));
 
-            if (publicIpV6Address.IpAddress is null)
-                publicIpV6Address = ipV6Addresses.FirstOrDefault(q => q.PrefixOrigin is PrefixOrigin.Dhcp && q.SuffixOrigin is SuffixOrigin.OriginDhcp);
+                return;
+            }
 
-            return publicIpV6Address.IpAddress;
+            await ReceiveAsync(buffer, remoteEp, cancellationToken).ConfigureAwait(false);
         }
-
-        return GetIpV6Addresses().FirstOrDefault();
+        catch (OperationCanceledException)
+        {
+            // ignore, shut down signal
+        }
+        catch (Exception ex)
+        {
+            await Logger.LogExceptionDetailsAsync(ex).ConfigureAwait(false);
+        }
     }
-
-    [SupportedOSPlatform("windows")]
-    private static IEnumerable<(IPAddress IpAddress, PrefixOrigin PrefixOrigin, SuffixOrigin SuffixOrigin)> GetWindowsIpV6Addresses()
-        => GetIpV6UnicastAddresses()
-        .Select(q => (q.Address, q.PrefixOrigin, q.SuffixOrigin));
-
-    private static IEnumerable<IPAddress> GetIpV6Addresses()
-        => GetIpV6UnicastAddresses()
-        .Select(q => q.Address);
-
-    private static IEnumerable<UnicastIPAddressInformation> GetIpV6UnicastAddresses()
-        => NetworkInterface.GetAllNetworkInterfaces()
-        .Where(q => q.OperationalStatus is OperationalStatus.Up)
-        .Select(q => q.GetIPProperties())
-        .Where(q => q.GatewayAddresses.Any())
-        .SelectMany(q => q.UnicastAddresses)
-        .Where(q => q.Address.AddressFamily is AddressFamily.InterNetworkV6)
-        .Where(q => q.Address is { IsIPv6SiteLocal: false, IsIPv6UniqueLocal: false, IsIPv6LinkLocal: false });
 
     private async ValueTask SendMasterServerHeartbeatAsync(int clients, CancellationToken cancellationToken)
     {
-        string path = FormattableString.Invariant($"?version={Version}&name={Uri.EscapeDataString(ServiceOptions.Value.Name!)}") +
+        var path = new Uri(
+            FormattableString.Invariant($"?version={Version}&name={Uri.EscapeDataString(ServiceOptions.Value.Name!)}") +
             FormattableString.Invariant($"&port={Port}&clients={clients}&maxclients={ServiceOptions.Value.MaxClients}") +
             FormattableString.Invariant($"&masterpw={Uri.EscapeDataString(ServiceOptions.Value.MasterPassword ?? string.Empty)}") +
             FormattableString.Invariant($"&maintenance={(MaintenanceModeEnabled ? 1 : 0)}") +
-            FormattableString.Invariant($"&address2={secondaryIpAddress}");
+            FormattableString.Invariant($"&address2={secondaryIpAddress}"),
+            UriKind.Relative);
         HttpResponseMessage? httpResponseMessage = null;
 
         try
@@ -262,7 +266,7 @@ internal abstract class Tunnel : IAsyncDisposable
                 throw new MasterServerException(responseContent);
 
             if (Logger.IsEnabled(LogLevel.Information))
-                Logger.LogInfo(FormattableString.Invariant($"{DateTimeOffset.Now} V{Version} Tunnel Heartbeat sent."));
+                Logger.LogInfo(FormattableString.Invariant($"V{Version} Tunnel Heartbeat sent."));
         }
         catch (HttpRequestException ex)
         {
@@ -275,12 +279,12 @@ internal abstract class Tunnel : IAsyncDisposable
         if (pingCounter!.Count >= ServiceOptions.Value.MaxPingsGlobal)
             return true;
 
-        int ipHash = address.GetHashCode();
+        int hashCode = address.GetHashCode();
 
-        if (pingCounter.TryGetValue(ipHash, out int count) && count >= ServiceOptions.Value.MaxPingsPerIp)
+        if (pingCounter.TryGetValue(hashCode, out int count) && count >= ServiceOptions.Value.MaxPingsPerIp)
             return true;
 
-        pingCounter[ipHash] = ++count;
+        pingCounter[hashCode] = ++count;
 
         return false;
     }
@@ -295,9 +299,7 @@ internal abstract class Tunnel : IAsyncDisposable
             await SendHeartbeatAsync(cancellationToken).ConfigureAwait(false);
 
             while (await heartbeatTimer!.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false))
-            {
                 await SendHeartbeatAsync(cancellationToken).ConfigureAwait(false);
-            }
         }
         catch (OperationCanceledException)
         {
@@ -326,5 +328,38 @@ internal abstract class Tunnel : IAsyncDisposable
         {
             await Logger.LogExceptionDetailsAsync(ex).ConfigureAwait(false);
         }
+    }
+
+#if EnableLegacyVersion
+#pragma warning disable SA1202 // Elements should be ordered by access
+    protected virtual int CleanupConnections()
+#pragma warning restore SA1202 // Elements should be ordered by access
+#else
+    private int CleanupConnections()
+#endif
+    {
+        foreach (KeyValuePair<uint, TunnelClient> mapping in Mappings!.Where(x => x.Value.TimedOut).ToList())
+        {
+            CleanupConnection(mapping.Value);
+            _ = Mappings!.Remove(mapping.Key, out _);
+
+            if (Logger.IsEnabled(LogLevel.Information))
+            {
+                Logger.LogInfo(
+                    FormattableString.Invariant($"Removed V{Version} client from ") +
+                    FormattableString.Invariant($"{mapping.Value.RemoteEp?.ToString() ?? "(not connected)"}, "));
+            }
+
+            if (Logger.IsEnabled(LogLevel.Debug))
+            {
+                Logger.LogDebug(
+                    FormattableString.Invariant($"{Mappings!.Count} clients from {Mappings.Values
+                        .Select(q => q.RemoteEp?.Address).Where(q => q is not null).Distinct().Count()} IPs."));
+            }
+        }
+
+        pingCounter!.Clear();
+
+        return Mappings!.Count;
     }
 }

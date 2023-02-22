@@ -3,8 +3,10 @@
 internal sealed record ServiceOptions
 {
     public int TunnelPort { get; set; }
+#if EnableLegacyVersion
 
     public int TunnelV2Port { get; set; }
+#endif
 
     public string? Name { get; set; }
 
@@ -23,8 +25,10 @@ internal sealed record ServiceOptions
     public bool NoPeerToPeer { get; set; }
 
     public bool TunnelV3Enabled { get; set; }
+#if EnableLegacyVersion
 
     public bool TunnelV2Enabled { get; set; }
+#endif
 
     public LogLevel ServerLogLevel { get; set; }
 
@@ -33,8 +37,10 @@ internal sealed record ServiceOptions
     public bool AnnounceIpV6 { get; set; }
 
     public bool AnnounceIpV4 { get; set; }
+#if EnableLegacyVersion
 
     public bool TunnelV2Https { get; set; }
+#endif
 
     public int MaxPacketSize { get; set; }
 

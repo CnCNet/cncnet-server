@@ -16,8 +16,7 @@ internal sealed class TunnelClient
 
     public IPEndPoint? RemoteEp { get; set; }
 
-    public bool TimedOut { get => TimeSpan.FromTicks(DateTime.UtcNow.Ticks - lastReceiveTick).TotalSeconds >= timeout; }
+    public bool TimedOut => TimeSpan.FromTicks(DateTime.UtcNow.Ticks - lastReceiveTick).TotalSeconds >= timeout;
 
-    public void SetLastReceiveTick()
-        => lastReceiveTick = DateTime.UtcNow.Ticks;
+    public void SetLastReceiveTick() => lastReceiveTick = DateTime.UtcNow.Ticks;
 }

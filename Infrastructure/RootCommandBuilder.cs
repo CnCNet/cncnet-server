@@ -10,9 +10,11 @@ internal static class RootCommandBuilder
     {
         var nameOption = new Option<string>(new[] { "--name", "--n" }, "Name of the server") { IsRequired = true };
         var maxClientsOption = new Option<int>(new[] { "--maxclients", "--m" }, () => 200, "Maximum clients allowed on the tunnel server");
-        var ipLimitOption = new Option<int>(new[] { "--iplimit", "--i" }, () => 8, "Maximum clients allowed per IP address");
+        var addressLimitOption = new Option<int>(new[] { "--iplimit", "--i" }, () => 8, "Maximum clients allowed per IP address");
         var tunnelPortOption = new Option<int>(new[] { "--tunnelport", "--p" }, () => 50001, "Port used for the V3 tunnel server");
+#if EnableLegacyVersion
         var tunnelV2PortOption = new Option<int>(new[] { "--tunnelv2port", "--p2" }, () => 50000, "Port used for the V2 tunnel server");
+#endif
         var announceIpV6Option = new Option<bool>(new[] { "--announceipv6", "--6" }, () => true, "Announce IPv6 address to master server");
         var announceIpV4Option = new Option<bool>(new[] { "--announceipv4", "--4" }, () => true, "Announce IPv4 address to master server");
         var maxPacketSizeOption = new Option<int>(new[] { "--maxpacketsize", "--mps" }, () => 2048, "Maximum accepted packet size");
@@ -23,7 +25,7 @@ internal static class RootCommandBuilder
 
         nameOption.AddValidator(result =>
         {
-            if (result.GetValueOrDefault<string>()!.Any(q => q == ';'))
+            if (result.GetValueOrDefault<string>()!.Any(q => q is ';'))
                 result.ErrorMessage = $"{nameof(ServiceOptions.Name)} cannot contain the character ;";
         });
         maxClientsOption.AddValidator(result =>
@@ -33,7 +35,7 @@ internal static class RootCommandBuilder
             if (result.GetValueOrDefault<int>() < minMaxClients)
                 result.ErrorMessage = $"{nameof(ServiceOptions.MaxClients)} minimum is {minMaxClients}";
         });
-        ipLimitOption.AddValidator(result =>
+        addressLimitOption.AddValidator(result =>
         {
             const int minIpLimit = 1;
 
@@ -55,7 +57,9 @@ internal static class RootCommandBuilder
                 result.ErrorMessage = $"{nameof(ServiceOptions.ClientTimeout)} minimum is {minClientTimeout}";
         });
         tunnelPortOption.AddValidator(ValidatePort);
+#if EnableLegacyVersion
         tunnelV2PortOption.AddValidator(ValidatePort);
+#endif
         announceIpV6Option.AddValidator(result => ValidateIpAnnounce(result, Socket.OSSupportsIPv6));
         announceIpV4Option.AddValidator(result => ValidateIpAnnounce(result, Socket.OSSupportsIPv4));
 
@@ -63,21 +67,27 @@ internal static class RootCommandBuilder
         {
             nameOption,
             tunnelPortOption,
+#if EnableLegacyVersion
             tunnelV2PortOption,
+#endif
             maxClientsOption,
             new Option<bool>(new[] { "--nomasterannounce", "--nm" }, () => false, "Don't register to master"),
             new Option<string?>(new[] { "--masterpassword", "--masp" }, () => null, "Master password"),
             new Option<string?>(new[] { "--maintenancepassword", "--maip" }, () => null, "Maintenance password"),
             new Option<Uri>(new[] { "--masterserverurl", "--mu" }, () => new($"{Uri.UriSchemeHttps}://cncnet.org/api/v1/master-announce"), "Master server URL"),
-            ipLimitOption,
+            addressLimitOption,
             new Option<bool>(new[] { "--nopeertopeer", "--np" }, () => false, "Disable STUN NAT traversal server (UDP 8054 & 3478)"),
             new Option<bool>(new[] { "--tunnelv3enabled", "--3" }, () => true, "Start a V3 tunnel server"),
+#if EnableLegacyVersion
             new Option<bool>(new[] { "--tunnelv2enabled", "--2" }, () => true, "Start a V2 tunnel server"),
+#endif
             new Option<LogLevel>(new[] { "--serverloglevel", "--sel" }, () => LogLevel.Warning, "CnCNet server messages log level"),
             new Option<LogLevel>(new[] { "--systemloglevel", "--syl" }, () => LogLevel.Warning, "Low level system messages log level"),
             announceIpV6Option,
             announceIpV4Option,
+#if EnableLegacyVersion
             new Option<bool>(new[] { "--tunnelv2https", "--h" }, () => false, $"Use {Uri.UriSchemeHttps} Tunnel V2 web server"),
+#endif
             maxPacketSizeOption,
             maxPingsGlobalOption,
             maxPingsPerIpOption,

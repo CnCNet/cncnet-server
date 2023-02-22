@@ -10,7 +10,9 @@ internal sealed class CnCNetBackgroundService : BackgroundService
     private readonly ILogger logger;
     private readonly IOptions<ServiceOptions> options;
     private readonly TunnelV3 tunnelV3;
+#if EnableLegacyVersion
     private readonly TunnelV2 tunnelV2;
+#endif
     private readonly PeerToPeerUtil peerToPeerUtil1;
     private readonly PeerToPeerUtil peerToPeerUtil2;
     private readonly ParseResult parseResult;
@@ -18,13 +20,23 @@ internal sealed class CnCNetBackgroundService : BackgroundService
     private bool started;
     private bool stopping;
 
-    public CnCNetBackgroundService(ILogger<CnCNetBackgroundService> logger, IOptions<ServiceOptions> options, TunnelV3 tunnelV3,
-        TunnelV2 tunnelV2, PeerToPeerUtil peerToPeerUtil1, PeerToPeerUtil peerToPeerUtil2, ParseResult parseResult)
+    public CnCNetBackgroundService(
+        ILogger<CnCNetBackgroundService> logger,
+        IOptions<ServiceOptions> options,
+        TunnelV3 tunnelV3,
+#if EnableLegacyVersion
+        TunnelV2 tunnelV2,
+#endif
+        PeerToPeerUtil peerToPeerUtil1,
+        PeerToPeerUtil peerToPeerUtil2,
+        ParseResult parseResult)
     {
         this.logger = logger;
         this.options = options;
         this.tunnelV3 = tunnelV3;
+#if EnableLegacyVersion
         this.tunnelV2 = tunnelV2;
+#endif
         this.peerToPeerUtil1 = peerToPeerUtil1;
         this.peerToPeerUtil2 = peerToPeerUtil2;
         this.parseResult = parseResult;
@@ -36,7 +48,7 @@ internal sealed class CnCNetBackgroundService : BackgroundService
             return;
 
         if (logger.IsEnabled(LogLevel.Information))
-            logger.LogInfo(FormattableString.Invariant($"{DateTimeOffset.Now} Server {options.Value.Name} starting."));
+            logger.LogInfo(FormattableString.Invariant($"Server {options.Value.Name} starting."));
 
         try
         {
@@ -49,7 +61,7 @@ internal sealed class CnCNetBackgroundService : BackgroundService
         }
 
         if (logger.IsEnabled(LogLevel.Information))
-            logger.LogInfo(FormattableString.Invariant($"{DateTimeOffset.Now} Server {options.Value.Name} started."));
+            logger.LogInfo(FormattableString.Invariant($"Server {options.Value.Name} started."));
 
         started = true;
     }
@@ -62,7 +74,7 @@ internal sealed class CnCNetBackgroundService : BackgroundService
         stopping = true;
 
         if (logger.IsEnabled(LogLevel.Information))
-            logger.LogInfo(FormattableString.Invariant($"{DateTimeOffset.Now} Server {options.Value.Name} stopping."));
+            logger.LogInfo(FormattableString.Invariant($"Server {options.Value.Name} stopping."));
 
         try
         {
@@ -75,24 +87,35 @@ internal sealed class CnCNetBackgroundService : BackgroundService
         }
 
         if (logger.IsEnabled(LogLevel.Information))
-            logger.LogInfo(FormattableString.Invariant($"{DateTimeOffset.Now} Server {options.Value.Name} stopped."));
+            logger.LogInfo(FormattableString.Invariant($"Server {options.Value.Name} stopped."));
     }
 
     protected override Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (options.Value is { TunnelV3Enabled: false, TunnelV2Enabled: false, NoPeerToPeer: true })
+        if (options.Value is
+            {
+                TunnelV3Enabled: false,
+#if EnableLegacyVersion
+                TunnelV2Enabled: false,
+#endif
+                NoPeerToPeer: true
+            })
+        {
             throw new ConfigurationException("No tunnel or peer to peer enabled.");
+        }
 
         var tasks = new List<Task>();
 
         if (options.Value.TunnelV3Enabled)
             tasks.Add(CreateLongRunningTask(() => tunnelV3.StartAsync(stoppingToken), tunnelV3, stoppingToken));
+#if EnableLegacyVersion
 
         if (options.Value.TunnelV2Enabled)
         {
             tasks.Add(CreateLongRunningTask(() => tunnelV2.StartAsync(stoppingToken), tunnelV2, stoppingToken));
             tasks.Add(CreateLongRunningTask(() => tunnelV2.StartHttpServerAsync(stoppingToken), tunnelV2, stoppingToken));
         }
+#endif
 
         if (!options.Value.NoPeerToPeer)
         {
@@ -120,9 +143,8 @@ internal sealed class CnCNetBackgroundService : BackgroundService
         }
     }
 
-    private Task CreateLongRunningTask(Func<Task> task, IAsyncDisposable disposable, CancellationToken cancellationToken)
-    {
-        return Task.Factory.StartNew(
+    private Task CreateLongRunningTask(Func<Task> task, IAsyncDisposable disposable, CancellationToken cancellationToken) =>
+        Task.Factory.StartNew(
             async _ =>
             {
                 while (!cancellationToken.IsCancellationRequested)
@@ -149,7 +171,6 @@ internal sealed class CnCNetBackgroundService : BackgroundService
             cancellationToken,
             TaskCreationOptions.LongRunning,
             TaskScheduler.Default).Unwrap();
-    }
 
     private async ValueTask LogExceptionAsync(IAsyncDisposable disposable, Exception ex)
     {

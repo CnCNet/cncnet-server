@@ -14,11 +14,9 @@ internal static partial class LoggerExtensions
         => logger.LogException(exception.GetDetailedExceptionInfo());
 
     public static void ConfigureLogging(this ILoggingBuilder loggingBuilder, LogLevel serverLogLevel, LogLevel systemLogLevel)
-    {
-        loggingBuilder
-            .SetMinimumLevel(systemLogLevel)
-            .AddFilter(nameof(CnCNetServer), serverLogLevel);
-    }
+        => _ = loggingBuilder
+                .SetMinimumLevel(systemLogLevel)
+                .AddFilter(nameof(CnCNetServer), serverLogLevel);
 
     [LoggerMessage(EventId = 4, Level = LogLevel.Trace, Message = "{message}")]
     public static partial void LogTrace(this ILogger logger, string message);

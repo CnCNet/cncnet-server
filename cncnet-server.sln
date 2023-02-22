@@ -15,12 +15,18 @@ Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
 		Release|Any CPU = Release|Any CPU
+		V2AndV3Debug|Any CPU = V2AndV3Debug|Any CPU
+		V2AndV3Release|Any CPU = V2AndV3Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{3D131F58-E0A0-4EAD-AA54-8960A0A20C7C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{3D131F58-E0A0-4EAD-AA54-8960A0A20C7C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3D131F58-E0A0-4EAD-AA54-8960A0A20C7C}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3D131F58-E0A0-4EAD-AA54-8960A0A20C7C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3D131F58-E0A0-4EAD-AA54-8960A0A20C7C}.V2AndV3Debug|Any CPU.ActiveCfg = V2AndV3Debug|Any CPU
+		{3D131F58-E0A0-4EAD-AA54-8960A0A20C7C}.V2AndV3Debug|Any CPU.Build.0 = V2AndV3Debug|Any CPU
+		{3D131F58-E0A0-4EAD-AA54-8960A0A20C7C}.V2AndV3Release|Any CPU.ActiveCfg = V2AndV3Release|Any CPU
+		{3D131F58-E0A0-4EAD-AA54-8960A0A20C7C}.V2AndV3Release|Any CPU.Build.0 = V2AndV3Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -29,13 +29,13 @@ internal static class ExceptionMessageBuilder
         {
             foreach (Exception innerException in aggregateException.InnerExceptions)
             {
-                sb.AppendLine(FormattableString.Invariant($"{nameof(AggregateException)}.{nameof(AggregateException.InnerExceptions)}:"))
+                _ = sb.AppendLine(FormattableString.Invariant($"{nameof(AggregateException)}.{nameof(AggregateException.InnerExceptions)}:"))
                     .GetExceptionInfo(innerException);
             }
         }
         else if (ex.InnerException is not null)
         {
-            sb.AppendLine(FormattableString.Invariant($"{nameof(Exception)}.{nameof(Exception.InnerException)}:"))
+            _ = sb.AppendLine(FormattableString.Invariant($"{nameof(Exception)}.{nameof(Exception.InnerException)}:"))
                 .GetExceptionInfo(ex.InnerException);
         }
 
@@ -64,7 +64,7 @@ internal static class ExceptionMessageBuilder
     private static StringBuilder GetSocketExceptionDetails(this StringBuilder sb, Exception ex)
     {
         if (ex is SocketException socketException)
-            sb.AppendLine(FormattableString.Invariant($"{nameof(SocketException)}.{nameof(SocketException.SocketErrorCode)}: {socketException.SocketErrorCode}"));
+            _ = sb.AppendLine(FormattableString.Invariant($"{nameof(SocketException)}.{nameof(SocketException.SocketErrorCode)}: {socketException.SocketErrorCode}"));
 
         return sb;
     }
