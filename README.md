@@ -9,10 +9,10 @@
 
 ## How to run/install
 
-The .NET7 V3 version requires the [.NET Runtime 7](https://dotnet.microsoft.com/en-us/download/dotnet/7.0/runtime).
-The .NET7 V3+V2 version additionally requires the [ASP.NET Core Runtime 7](https://dotnet.microsoft.com/en-us/download/dotnet/7.0/runtime).
-The .NET8 V3 version requires the [.NET Runtime 8](https://dotnet.microsoft.com/en-us/download/dotnet/8.0/runtime).
-The .NET8 V3+V2 version additionally requires the [ASP.NET Core Runtime 8](https://dotnet.microsoft.com/en-us/download/dotnet/8.0/runtime).
+* The .NET7 V3 version requires the [.NET Runtime 7](https://dotnet.microsoft.com/en-us/download/dotnet/7.0/runtime).
+* The .NET7 V3+V2 version additionally requires the [ASP.NET Core Runtime 7](https://dotnet.microsoft.com/en-us/download/dotnet/7.0/runtime).
+* The .NET8 V3 version requires the [.NET Runtime 8](https://dotnet.microsoft.com/en-us/download/dotnet/8.0/runtime).
+* The .NET8 V3+V2 version additionally requires the [ASP.NET Core Runtime 8](https://dotnet.microsoft.com/en-us/download/dotnet/8.0/runtime).
 
 Make sure these ports are open/forwarded to the machine (default ports):
 
