@@ -66,7 +66,7 @@ internal sealed class TunnelV2 : Tunnel
     protected override bool ValidateClientIds(uint senderId, uint receiverId, ReadOnlyMemory<byte> buffer, IPEndPoint remoteEp)
     {
         if ((senderId == receiverId && senderId is not 0u) || remoteEp.Address.Equals(IPAddress.Loopback)
-           || remoteEp.Address.Equals(IPAddress.Any) || remoteEp.Address.Equals(IPAddress.Broadcast) || remoteEp.Port is 0)
+            || remoteEp.Address.Equals(IPAddress.Any) || remoteEp.Address.Equals(IPAddress.Broadcast) || remoteEp.Port is 0)
         {
             if (Logger.IsEnabled(LogLevel.Debug))
                 Logger.LogDebug(FormattableString.Invariant($"V{Version} client {remoteEp} invalid endpoint."));
@@ -145,8 +145,8 @@ internal sealed class TunnelV2 : Tunnel
             {
                 Logger.LogDebug(
                     FormattableString.Invariant($"{Mappings.Count} clients from ") +
-                    FormattableString.Invariant($"{Mappings.Values.Select(q => q.RemoteEp?.Address)
-                        .Where(q => q is not null).Distinct().Count()} IPs."));
+                    FormattableString.Invariant($"{Mappings.Values.Select(static q => q.RemoteEp?.Address)
+                        .Where(static q => q is not null).Distinct().Count()} IPs."));
             }
         }
         else if (!remoteEp.Equals(sender.RemoteEp))
@@ -236,12 +236,12 @@ internal sealed class TunnelV2 : Tunnel
                 int clientId = rand.Next(0, short.MaxValue);
 #pragma warning restore CA5394 // Do not use insecure randomness
 
-                if (Mappings.TryAdd((uint)clientId, new(ServiceOptions.Value.ClientTimeout)))
-                {
-                    clients--;
+                if (!Mappings.TryAdd((uint)clientId, new(ServiceOptions.Value.ClientTimeout)))
+                    continue;
 
-                    clientIds.Add(clientId);
-                }
+                clients--;
+
+                clientIds.Add(clientId);
             }
         }
 

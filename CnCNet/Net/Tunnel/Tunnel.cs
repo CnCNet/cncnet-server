@@ -107,38 +107,36 @@ internal abstract class Tunnel : IAsyncDisposable
 
     private static IPAddress? GetPublicIpV6Address()
     {
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-        {
-            var localIpV6Addresses = GetWindowsIpV6Addresses().ToList();
-            (IPAddress IpAddress, PrefixOrigin PrefixOrigin, SuffixOrigin SuffixOrigin) publicIpV6Address = localIpV6Addresses.FirstOrDefault(
-                  q => q.PrefixOrigin is PrefixOrigin.RouterAdvertisement && q.SuffixOrigin is SuffixOrigin.LinkLayerAddress);
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            return GetIpV6Addresses().FirstOrDefault();
 
-            if (publicIpV6Address.IpAddress is null)
-                publicIpV6Address = localIpV6Addresses.FirstOrDefault(q => q.PrefixOrigin is PrefixOrigin.Dhcp && q.SuffixOrigin is SuffixOrigin.OriginDhcp);
+        var localIpV6Addresses = GetWindowsIpV6Addresses().ToList();
+        (IPAddress IpAddress, PrefixOrigin PrefixOrigin, SuffixOrigin SuffixOrigin) publicIpV6Address = localIpV6Addresses.FirstOrDefault(
+            static q => q.PrefixOrigin is PrefixOrigin.RouterAdvertisement && q.SuffixOrigin is SuffixOrigin.LinkLayerAddress);
 
-            return publicIpV6Address.IpAddress;
-        }
+        if (publicIpV6Address.IpAddress is null)
+            publicIpV6Address = localIpV6Addresses.FirstOrDefault(static q => q.PrefixOrigin is PrefixOrigin.Dhcp && q.SuffixOrigin is SuffixOrigin.OriginDhcp);
 
-        return GetIpV6Addresses().FirstOrDefault();
+        return publicIpV6Address.IpAddress;
     }
 
     [SupportedOSPlatform("windows")]
     private static IEnumerable<(IPAddress IpAddress, PrefixOrigin PrefixOrigin, SuffixOrigin SuffixOrigin)> GetWindowsIpV6Addresses()
         => GetIpV6UnicastAddresses()
-        .Select(q => (q.Address, q.PrefixOrigin, q.SuffixOrigin));
+        .Select(static q => (q.Address, q.PrefixOrigin, q.SuffixOrigin));
 
     private static IEnumerable<IPAddress> GetIpV6Addresses()
         => GetIpV6UnicastAddresses()
-        .Select(q => q.Address);
+        .Select(static q => q.Address);
 
     private static IEnumerable<UnicastIPAddressInformation> GetIpV6UnicastAddresses()
         => NetworkInterface.GetAllNetworkInterfaces()
-        .Where(q => q.OperationalStatus is OperationalStatus.Up)
-        .Select(q => q.GetIPProperties())
-        .Where(q => q.GatewayAddresses.Count is not 0)
-        .SelectMany(q => q.UnicastAddresses)
-        .Where(q => q.Address.AddressFamily is AddressFamily.InterNetworkV6)
-        .Where(q => q.Address is { IsIPv6SiteLocal: false, IsIPv6UniqueLocal: false, IsIPv6LinkLocal: false });
+        .Where(static q => q.OperationalStatus is OperationalStatus.Up)
+        .Select(static q => q.GetIPProperties())
+        .Where(static q => q.GatewayAddresses.Count is not 0)
+        .SelectMany(static q => q.UnicastAddresses)
+        .Where(static q => q.Address.AddressFamily is AddressFamily.InterNetworkV6)
+        .Where(static q => q.Address is { IsIPv6SiteLocal: false, IsIPv6UniqueLocal: false, IsIPv6LinkLocal: false });
 
     private async ValueTask ReceiveAsync(ReadOnlyMemory<byte> buffer, IPEndPoint remoteEp, CancellationToken cancellationToken)
     {
@@ -338,7 +336,7 @@ internal abstract class Tunnel : IAsyncDisposable
     private int CleanupConnections()
 #endif
     {
-        foreach (KeyValuePair<uint, TunnelClient> mapping in Mappings!.Where(x => x.Value.TimedOut).ToList())
+        foreach (KeyValuePair<uint, TunnelClient> mapping in Mappings!.Where(static x => x.Value.TimedOut).ToList())
         {
             CleanupConnection(mapping.Value);
             _ = Mappings!.Remove(mapping.Key, out _);
@@ -354,7 +352,7 @@ internal abstract class Tunnel : IAsyncDisposable
             {
                 Logger.LogDebug(
                     FormattableString.Invariant($"{Mappings!.Count} clients from {Mappings.Values
-                        .Select(q => q.RemoteEp?.Address).Where(q => q is not null).Distinct().Count()} IPs."));
+                        .Select(static q => q.RemoteEp?.Address).Where(static q => q is not null).Distinct().Count()} IPs."));
             }
         }
 

@@ -6,11 +6,11 @@ using Microsoft.Extensions.DependencyInjection;
 
 return await new CommandLineBuilder(RootCommandBuilder.Build())
     .UseDefaults()
-    .UseHost(Host.CreateDefaultBuilder, hostBuilder =>
+    .UseHost(Host.CreateDefaultBuilder, static hostBuilder =>
         hostBuilder
-            .UseWindowsService(o => o.ServiceName = "CnCNetServer")
+            .UseWindowsService(static o => o.ServiceName = "CnCNetServer")
             .UseSystemd()
-            .ConfigureServices(services =>
+            .ConfigureServices(static services =>
             {
                 services.AddOptions<ServiceOptions>().BindCommandLine();
                 services

@@ -25,7 +25,7 @@ internal static class Startup
 
                     await socket.ConnectAsync(context.DnsEndPoint, token).ConfigureAwait(false);
 
-                    return new NetworkStream(socket, ownsSocket: true);
+                    return new NetworkStream(socket, true);
                 }
                 catch
                 {
@@ -47,8 +47,8 @@ internal static class Startup
     {
         InvocationContext invocationContext = context.GetInvocationContext();
         IReadOnlyList<Option> options = invocationContext.ParseResult.RootCommandResult.Command.Options;
-        Option serverLogLevelOption = options.Single(q => q.Name.Equals(nameof(ServiceOptions.ServerLogLevel), StringComparison.OrdinalIgnoreCase));
-        Option systemLogLevelOption = options.Single(q => q.Name.Equals(nameof(ServiceOptions.SystemLogLevel), StringComparison.OrdinalIgnoreCase));
+        Option serverLogLevelOption = options.Single(static q => q.Name.Equals(nameof(ServiceOptions.ServerLogLevel), StringComparison.OrdinalIgnoreCase));
+        Option systemLogLevelOption = options.Single(static q => q.Name.Equals(nameof(ServiceOptions.SystemLogLevel), StringComparison.OrdinalIgnoreCase));
         var serverLogLevel = (LogLevel)invocationContext.ParseResult.GetValueForOption(serverLogLevelOption)!;
         var systemLogLevel = (LogLevel)invocationContext.ParseResult.GetValueForOption(systemLogLevelOption)!;
 

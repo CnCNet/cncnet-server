@@ -165,8 +165,8 @@ internal sealed class TunnelV3 : Tunnel
                 {
                     Logger.LogDebug(
                         FormattableString.Invariant($"{Mappings!.Count} clients from ") +
-                        FormattableString.Invariant($"{Mappings.Values.Select(q => q.RemoteEp?.Address)
-                            .Where(q => q is not null).Distinct().Count()} IPs."));
+                        FormattableString.Invariant($"{Mappings.Values.Select(static q => q.RemoteEp?.Address)
+                            .Where(static q => q is not null).Distinct().Count()} IPs."));
                 }
             }
             else
