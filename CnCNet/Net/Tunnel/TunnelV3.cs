@@ -30,7 +30,7 @@ internal sealed class TunnelV3 : Tunnel
 
     protected override int MinimumPacketSize => 8;
 
-    public override Task StartAsync(CancellationToken cancellationToken)
+    public override ValueTask StartAsync(CancellationToken cancellationToken)
     {
         if (ServiceOptions.Value.MaintenancePassword?.Length is not null and not 0)
 #pragma warning disable CA5350 // Do Not Use Weak Cryptographic Algorithms

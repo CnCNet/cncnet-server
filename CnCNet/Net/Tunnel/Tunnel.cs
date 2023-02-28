@@ -42,7 +42,7 @@ internal abstract class Tunnel : IAsyncDisposable
 
     protected Socket? Client { get; private set; }
 
-    public virtual async Task StartAsync(CancellationToken cancellationToken)
+    public virtual async ValueTask StartAsync(CancellationToken cancellationToken)
     {
         Client = new(SocketType.Dgram, ProtocolType.Udp);
         heartbeatTimer = new(TimeSpan.FromSeconds(ServiceOptions.Value.MasterAnnounceInterval));
@@ -216,8 +216,7 @@ internal abstract class Tunnel : IAsyncDisposable
         return false;
     }
 
-    private async Task DoReceiveAsync(
-        ReadOnlyMemory<byte> buffer, IPEndPoint remoteEp, CancellationToken cancellationToken)
+    private async Task DoReceiveAsync(ReadOnlyMemory<byte> buffer, IPEndPoint remoteEp, CancellationToken cancellationToken)
     {
         try
         {
@@ -231,7 +230,7 @@ internal abstract class Tunnel : IAsyncDisposable
 
             await ReceiveAsync(buffer, remoteEp, cancellationToken).ConfigureAwait(false);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException ex) when (ex.CancellationToken == cancellationToken)
         {
             // ignore, shut down signal
         }
@@ -270,6 +269,10 @@ internal abstract class Tunnel : IAsyncDisposable
         {
             await Logger.LogExceptionDetailsAsync(ex, httpResponseMessage).ConfigureAwait(false);
         }
+        finally
+        {
+            httpResponseMessage?.Dispose();
+        }
     }
 
     private bool IsPingLimitReached(IPAddress address)
@@ -289,42 +292,29 @@ internal abstract class Tunnel : IAsyncDisposable
 
     private async Task StartHeartbeatAsync(CancellationToken cancellationToken)
     {
-        try
+        while (!cancellationToken.IsCancellationRequested)
         {
-            if (ServiceOptions.Value is { AnnounceIpV4: true, AnnounceIpV6: true })
-                secondaryIpAddress = GetPublicIpV6Address();
+            try
+            {
+                if (ServiceOptions.Value is { AnnounceIpV4: true, AnnounceIpV6: true })
+                    secondaryIpAddress = GetPublicIpV6Address();
 
-            await SendHeartbeatAsync(cancellationToken).ConfigureAwait(false);
+                while (await heartbeatTimer!.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    int clients = CleanupConnections();
 
-            while (await heartbeatTimer!.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false))
-                await SendHeartbeatAsync(cancellationToken).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException)
-        {
-            // ignore, shut down signal
-        }
-        catch (Exception ex)
-        {
-            await Logger.LogExceptionDetailsAsync(ex).ConfigureAwait(false);
-        }
-    }
-
-    private async ValueTask SendHeartbeatAsync(CancellationToken cancellationToken)
-    {
-        try
-        {
-            int clients = CleanupConnections();
-
-            if (!ServiceOptions.Value.NoMasterAnnounce)
-                await SendMasterServerHeartbeatAsync(clients, cancellationToken).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            await Logger.LogExceptionDetailsAsync(ex).ConfigureAwait(false);
+                    if (!ServiceOptions.Value.NoMasterAnnounce)
+                        await SendMasterServerHeartbeatAsync(clients, cancellationToken).ConfigureAwait(false);
+                }
+            }
+            catch (OperationCanceledException ex) when (ex.CancellationToken == cancellationToken)
+            {
+                // ignore, shut down signal
+            }
+            catch (Exception ex)
+            {
+                await Logger.LogExceptionDetailsAsync(ex).ConfigureAwait(false);
+            }
         }
     }
 

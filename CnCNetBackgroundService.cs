@@ -44,86 +44,97 @@ internal sealed class CnCNetBackgroundService : BackgroundService
 
     public override async Task StartAsync(CancellationToken cancellationToken)
     {
-        if (parseResult.Errors.Any())
-            return;
-
-        if (logger.IsEnabled(LogLevel.Information))
-            logger.LogInfo(FormattableString.Invariant($"Server {options.Value.Name} starting."));
-
         try
         {
+            if (parseResult.Errors.Any())
+                return;
+
+            if (logger.IsEnabled(LogLevel.Information))
+                logger.LogInfo(FormattableString.Invariant($"Server {options.Value.Name} starting."));
+
             await base.StartAsync(cancellationToken).ConfigureAwait(false);
+
+            if (logger.IsEnabled(LogLevel.Information))
+                logger.LogInfo(FormattableString.Invariant($"Server {options.Value.Name} started."));
+
+            started = true;
         }
         catch (Exception ex)
         {
-            logger.LogExceptionDetails(ex);
+            await logger.LogExceptionDetailsAsync(ex).ConfigureAwait(false);
+
             throw;
         }
-
-        if (logger.IsEnabled(LogLevel.Information))
-            logger.LogInfo(FormattableString.Invariant($"Server {options.Value.Name} started."));
-
-        started = true;
     }
 
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
-        if (stopping || !started)
-            return;
-
-        stopping = true;
-
-        if (logger.IsEnabled(LogLevel.Information))
-            logger.LogInfo(FormattableString.Invariant($"Server {options.Value.Name} stopping."));
-
         try
         {
+            if (stopping || !started)
+                return;
+
+            stopping = true;
+
+            if (logger.IsEnabled(LogLevel.Information))
+                logger.LogInfo(FormattableString.Invariant($"Server {options.Value.Name} stopping."));
+
             await base.StopAsync(cancellationToken).ConfigureAwait(false);
+
+            if (logger.IsEnabled(LogLevel.Information))
+                logger.LogInfo(FormattableString.Invariant($"Server {options.Value.Name} stopped."));
         }
         catch (Exception ex)
         {
-            logger.LogExceptionDetails(ex);
+            await logger.LogExceptionDetailsAsync(ex).ConfigureAwait(false);
+
             throw;
         }
-
-        if (logger.IsEnabled(LogLevel.Information))
-            logger.LogInfo(FormattableString.Invariant($"Server {options.Value.Name} stopped."));
     }
 
-    protected override Task ExecuteAsync(CancellationToken stoppingToken)
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (options.Value is
+        try
+        {
+            if (options.Value is
+                {
+                    TunnelV3Enabled: false,
+#if EnableLegacyVersion
+                    TunnelV2Enabled: false,
+#endif
+                    NoPeerToPeer: true
+                })
             {
-                TunnelV3Enabled: false,
-#if EnableLegacyVersion
-                TunnelV2Enabled: false,
-#endif
-                NoPeerToPeer: true
-            })
-        {
-            throw new ConfigurationException("No tunnel or peer to peer enabled.");
-        }
+                throw new ConfigurationException("No tunnel or peer to peer enabled.");
+            }
 
-        var tasks = new List<Task>();
+            var tasks = new List<Task>();
 
-        if (options.Value.TunnelV3Enabled)
-            tasks.Add(CreateLongRunningTask(() => tunnelV3.StartAsync(stoppingToken), tunnelV3, stoppingToken));
+            if (options.Value.TunnelV3Enabled)
+                tasks.Add(CreateLongRunningTask(() => tunnelV3.StartAsync(stoppingToken), tunnelV3, stoppingToken));
 #if EnableLegacyVersion
 
-        if (options.Value.TunnelV2Enabled)
-        {
-            tasks.Add(CreateLongRunningTask(() => tunnelV2.StartAsync(stoppingToken), tunnelV2, stoppingToken));
-            tasks.Add(CreateLongRunningTask(() => tunnelV2.StartHttpServerAsync(stoppingToken), tunnelV2, stoppingToken));
-        }
+            if (options.Value.TunnelV2Enabled)
+            {
+                tasks.Add(CreateLongRunningTask(() => tunnelV2.StartAsync(stoppingToken), tunnelV2, stoppingToken));
+                tasks.Add(CreateLongRunningTask(() => tunnelV2.StartHttpServerAsync(stoppingToken), tunnelV2, stoppingToken));
+            }
 #endif
 
-        if (!options.Value.NoPeerToPeer)
-        {
-            tasks.Add(CreateLongRunningTask(() => peerToPeerUtil1.StartAsync(StunPort1, stoppingToken), peerToPeerUtil1, stoppingToken));
-            tasks.Add(CreateLongRunningTask(() => peerToPeerUtil2.StartAsync(StunPort2, stoppingToken), peerToPeerUtil2, stoppingToken));
-        }
+            if (!options.Value.NoPeerToPeer)
+            {
+                tasks.Add(CreateLongRunningTask(() => peerToPeerUtil1.StartAsync(StunPort1, stoppingToken), peerToPeerUtil1, stoppingToken));
+                tasks.Add(CreateLongRunningTask(() => peerToPeerUtil2.StartAsync(StunPort2, stoppingToken), peerToPeerUtil2, stoppingToken));
+            }
 
-        return WhenAllSafe(tasks);
+            await WhenAllSafe(tasks).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            await logger.LogExceptionDetailsAsync(ex).ConfigureAwait(false);
+
+            throw;
+        }
     }
 
     private static async Task WhenAllSafe(IEnumerable<Task> tasks)
@@ -143,38 +154,40 @@ internal sealed class CnCNetBackgroundService : BackgroundService
         }
     }
 
-    private Task CreateLongRunningTask(Func<Task> task, IAsyncDisposable disposable, CancellationToken cancellationToken) =>
-        Task.Factory.StartNew(
-            async _ =>
-            {
-                while (!cancellationToken.IsCancellationRequested)
-                {
-                    try
-                    {
-                        await task().ConfigureAwait(false);
-                    }
-                    catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
-                    {
-                        await LogExceptionAsync(disposable, ex).ConfigureAwait(false);
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        // ignored, shutdown signal
-                    }
-                    catch (Exception ex)
-                    {
-                        await LogExceptionAsync(disposable, ex).ConfigureAwait(false);
-                    }
-                }
-            },
+    private Task CreateLongRunningTask(Func<ValueTask> taskCreationFunction, IAsyncDisposable disposable, CancellationToken cancellationToken)
+        => Task.Factory.StartNew(
+            _ => CreateRestartingTaskAsync(taskCreationFunction, disposable, cancellationToken),
             null,
             cancellationToken,
             TaskCreationOptions.LongRunning,
             TaskScheduler.Default).Unwrap();
 
+    private async Task CreateRestartingTaskAsync(Func<ValueTask> taskCreationFunction, IAsyncDisposable disposable, CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                await taskCreationFunction().ConfigureAwait(false);
+            }
+            catch (OperationCanceledException ex) when (ex.CancellationToken == cancellationToken)
+            {
+                // ignored, shutdown signal
+            }
+            catch (OperationCanceledException ex)
+            {
+                await LogExceptionAsync(disposable, ex).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                await LogExceptionAsync(disposable, ex).ConfigureAwait(false);
+            }
+        }
+    }
+
     private async ValueTask LogExceptionAsync(IAsyncDisposable disposable, Exception ex)
     {
-        logger.LogExceptionDetails(ex);
+        await logger.LogExceptionDetailsAsync(ex).ConfigureAwait(false);
         await disposable.DisposeAsync().ConfigureAwait(false);
     }
 }

@@ -19,7 +19,7 @@ internal sealed class PeerToPeerUtil : IAsyncDisposable
         this.logger = logger;
     }
 
-    public Task StartAsync(int listenPort, CancellationToken cancellationToken)
+    public ValueTask StartAsync(int listenPort, CancellationToken cancellationToken)
     {
 #pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
 #pragma warning disable IDE0058 // Expression value is never used
@@ -43,22 +43,25 @@ internal sealed class PeerToPeerUtil : IAsyncDisposable
 
     private async Task ResetConnectionCounterAsync(CancellationToken cancellationToken)
     {
-        try
+        while (!cancellationToken.IsCancellationRequested)
         {
-            while (await connectionCounterTimer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false))
-                connectionCounter.Clear();
-        }
-        catch (OperationCanceledException)
-        {
-            // ignore, shut down signal
-        }
-        catch (Exception ex)
-        {
-            await logger.LogExceptionDetailsAsync(ex).ConfigureAwait(false);
+            try
+            {
+                while (await connectionCounterTimer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false))
+                    connectionCounter.Clear();
+            }
+            catch (OperationCanceledException ex) when (ex.CancellationToken == cancellationToken)
+            {
+                // ignore, shut down signal
+            }
+            catch (Exception ex)
+            {
+                await logger.LogExceptionDetailsAsync(ex).ConfigureAwait(false);
+            }
         }
     }
 
-    private async Task StartReceiverAsync(int listenPort, CancellationToken cancellationToken)
+    private async ValueTask StartReceiverAsync(int listenPort, CancellationToken cancellationToken)
     {
         using var client = new Socket(SocketType.Dgram, ProtocolType.Udp);
         var remoteEp = new IPEndPoint(IPAddress.Any, 0);
@@ -134,7 +137,7 @@ internal sealed class PeerToPeerUtil : IAsyncDisposable
 
             _ = await client.SendToAsync(sendBuffer, SocketFlags.None, remoteEp, cancellationToken).ConfigureAwait(false);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException ex) when (ex.CancellationToken == cancellationToken)
         {
             // ignore, shut down signal
         }

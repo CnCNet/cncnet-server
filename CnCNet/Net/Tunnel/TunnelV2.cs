@@ -22,7 +22,7 @@ internal sealed class TunnelV2 : Tunnel
 
     protected override int MinimumPacketSize => 4;
 
-    public Task StartHttpServerAsync(CancellationToken cancellationToken)
+    public async ValueTask StartHttpServerAsync(CancellationToken cancellationToken)
     {
         WebApplicationBuilder builder = WebApplication.CreateBuilder();
         string httpScheme = ServiceOptions.Value.TunnelV2Https ? Uri.UriSchemeHttps : Uri.UriSchemeHttp;
@@ -43,7 +43,7 @@ internal sealed class TunnelV2 : Tunnel
                 $"V{Version} Tunnel {httpScheme} server started on port {ServiceOptions.Value.TunnelV2Port}."));
         }
 
-        return app.RunAsync(cancellationToken);
+        await app.RunAsync(cancellationToken).ConfigureAwait(false);
     }
 
     protected override int CleanupConnections()
