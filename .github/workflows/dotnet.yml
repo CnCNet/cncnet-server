@@ -13,6 +13,7 @@ jobs:
       InformationalVersion: ${{ steps.gitversion.outputs.InformationalVersion }}
       SemVer: ${{ steps.gitversion.outputs.SemVer }}
       PreReleaseTag: ${{ steps.gitversion.outputs.PreReleaseTag }}
+      Sha: ${{ steps.gitversion.outputs.Sha }}
     steps:
       - name: Checkout
         uses: actions/checkout@main
@@ -33,6 +34,7 @@ jobs:
       AssemblySemFileVer: ${{ needs.calculate-version.outputs.AssemblySemFileVer }}
       InformationalVersion: ${{ needs.calculate-version.outputs.InformationalVersion }}
       SemVer: ${{ needs.calculate-version.outputs.SemVer }}
+      Sha: ${{ needs.calculate-version.outputs.Sha }}
     strategy:
       matrix:
         os: [win10, linux, osx.13, ubuntu.22.04, fedora.38]
@@ -42,6 +44,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@main
+        with:
+          ref: env.Sha
       - name: Setup .NET Core SDK
         uses: actions/setup-dotnet@main
         with:
@@ -54,29 +58,26 @@ jobs:
       - name: Upload Artifacts
         uses: actions/upload-artifact@main
         with:
-          name: ${{ matrix.framework }}-${{ matrix.release }}-${{ matrix.os }}-${{ matrix.platform }}
-          path: cncnet-server-v${{ env.SemVer }}-${{ matrix.framework }}-${{ matrix.release }}-${{ matrix.os }}-${{ matrix.platform }}.zip
+          name: ${{ matrix.framework }}-${{ matrix.release == 'V2AndV3Release' && 'V2+V3' || 'V3' }}-${{ matrix.os }}-${{ matrix.platform }}
+          path: cncnet-server-v${{ env.SemVer }}-${{ matrix.framework }}-${{ matrix.release == 'V2AndV3Release' && 'V2+V3' || 'V3' }}-${{ matrix.os }}-${{ matrix.platform }}.zip
           if-no-files-found: error
   release:
     needs: [calculate-version, publish]
     env:
       PreReleaseTag: ${{ needs.calculate-version.outputs.PreReleaseTag }}
       SemVer: ${{ needs.calculate-version.outputs.SemVer }}
+      Sha: ${{ needs.calculate-version.outputs.Sha }}
     runs-on: windows-latest
     steps:
       - name: Checkout
         uses: actions/checkout@main
+        with:
+          ref: env.Sha
       - name: Download Artifacts
         uses: actions/download-artifact@main
         with:
           path: ./artifacts
-      - name: Prerelease
-        if: env.PreReleaseTag != ''
-        run: gh release create ${{ format('v{0}', env.SemVer) }} (get-item ./artifacts/*/*.zip) --generate-notes --target ${{ github.sha }} --prerelease
-        env:
-          GH_TOKEN: ${{ github.token }}
       - name: Release
-        if: env.PreReleaseTag == ''
-        run: gh release create ${{ format('v{0}', env.SemVer) }} (get-item ./artifacts/*/*.zip) --generate-notes --target ${{ github.sha }}
+        run: gh release create v${{ env.SemVer }} (get-item ./artifacts/*/*.zip) --generate-notes --target ${{ github.sha }} ${{ env.PreReleaseTag != '' && '--prerelease' || '' }}
         env:
           GH_TOKEN: ${{ github.token }}
