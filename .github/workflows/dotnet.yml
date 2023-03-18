@@ -43,12 +43,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@main
       - name: Setup .NET Core 7 SDK
-        if: matrix.framework == net7.0
+        if: matrix.framework == 'net7.0'
         uses: actions/setup-dotnet@main
         with:
           dotnet-version: '7.x.x'
       - name: Setup .NET Core 8 SDK
-        if: matrix.framework == net8.0
+        if: matrix.framework == 'net8.0'
         uses: actions/setup-dotnet@main
         with:
           dotnet-version: '8.x.x'
