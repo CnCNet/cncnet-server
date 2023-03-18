@@ -45,7 +45,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@main
         with:
-          ref: env.Sha
+          ref: ${{ env.Sha }}
       - name: Setup .NET Core SDK
         uses: actions/setup-dotnet@main
         with:
@@ -72,7 +72,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@main
         with:
-          ref: env.Sha
+          ref: ${{ env.Sha }}
       - name: Download Artifacts
         uses: actions/download-artifact@main
         with:
