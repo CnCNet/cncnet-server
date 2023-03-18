@@ -54,7 +54,7 @@ jobs:
       - name: Publish
         run: dotnet publish -c ${{ matrix.release }} -f ${{ matrix.framework }} -r ${{ matrix.os }}-${{ matrix.platform }} --no-self-contained -p:PublishSingleFile=true -p:DebugType=embedded -p:AssemblyVersion=$env:GitVersion_AssemblySemVer -p:FileVersion=$env:GitVersion_AssemblySemFileVer -p:InformationalVersion=$env:GitVersion_InformationalVersion
       - name: Zip
-        run: 7z a -r "cncnet-server-v${{ env.SemVer }}-${{ matrix.framework }}-${{ matrix.release }}-${{ matrix.os }}-${{ matrix.platform }}.zip" "./bin/${{ matrix.release }}/${{ matrix.framework }}/${{ matrix.os }}-${{ matrix.platform }}/publish/*"
+        run: 7z a -r cncnet-server-v${{ env.SemVer }}-${{ matrix.framework }}-${{ matrix.release == 'V2AndV3Release' && 'V2+V3' || 'V3' }}-${{ matrix.os }}-${{ matrix.platform }}.zip ./bin/${{ matrix.release }}/${{ matrix.framework }}/${{ matrix.os }}-${{ matrix.platform }}/publish/*
       - name: Upload Artifacts
         uses: actions/upload-artifact@main
         with:
