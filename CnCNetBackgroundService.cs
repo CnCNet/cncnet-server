@@ -2,45 +2,22 @@
 
 using System.CommandLine.Parsing;
 
-internal sealed class CnCNetBackgroundService : BackgroundService
+internal sealed class CnCNetBackgroundService(
+    ILogger<CnCNetBackgroundService> logger,
+    IOptions<ServiceOptions> options,
+    TunnelV3 tunnelV3,
+#if EnableLegacyVersion
+    TunnelV2 tunnelV2,
+#endif
+    PeerToPeerUtil peerToPeerUtil1,
+    PeerToPeerUtil peerToPeerUtil2,
+    ParseResult parseResult) : BackgroundService
 {
     private const int StunPort1 = 3478;
     private const int StunPort2 = 8054;
 
-    private readonly ILogger logger;
-    private readonly IOptions<ServiceOptions> options;
-    private readonly TunnelV3 tunnelV3;
-#if EnableLegacyVersion
-    private readonly TunnelV2 tunnelV2;
-#endif
-    private readonly PeerToPeerUtil peerToPeerUtil1;
-    private readonly PeerToPeerUtil peerToPeerUtil2;
-    private readonly ParseResult parseResult;
-
     private bool started;
     private bool stopping;
-
-    public CnCNetBackgroundService(
-        ILogger<CnCNetBackgroundService> logger,
-        IOptions<ServiceOptions> options,
-        TunnelV3 tunnelV3,
-#if EnableLegacyVersion
-        TunnelV2 tunnelV2,
-#endif
-        PeerToPeerUtil peerToPeerUtil1,
-        PeerToPeerUtil peerToPeerUtil2,
-        ParseResult parseResult)
-    {
-        this.logger = logger;
-        this.options = options;
-        this.tunnelV3 = tunnelV3;
-#if EnableLegacyVersion
-        this.tunnelV2 = tunnelV2;
-#endif
-        this.peerToPeerUtil1 = peerToPeerUtil1;
-        this.peerToPeerUtil2 = peerToPeerUtil2;
-        this.parseResult = parseResult;
-    }
 
     public override async Task StartAsync(CancellationToken cancellationToken)
     {

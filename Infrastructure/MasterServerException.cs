@@ -1,9 +1,3 @@
 ﻿namespace CnCNetServer;
 
-internal sealed class MasterServerException : Exception
-{
-    public MasterServerException(string message)
-        : base(message)
-    {
-    }
-}
+internal sealed class MasterServerException(string message) : Exception(message);

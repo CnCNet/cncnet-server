@@ -3,7 +3,8 @@
 using System.Security.Cryptography;
 using System.Text;
 
-internal sealed class TunnelV3 : Tunnel
+internal sealed class TunnelV3(ILogger<TunnelV3> logger, IOptions<ServiceOptions> options, IHttpClientFactory httpClientFactory)
+    : Tunnel(logger, options, httpClientFactory)
 {
     private const int PlayerIdSize = sizeof(int);
     private const int TunnelCommandSize = 1;
@@ -13,11 +14,6 @@ internal sealed class TunnelV3 : Tunnel
 
     private byte[]? maintenancePasswordSha1;
     private long lastCommandTick;
-
-    public TunnelV3(ILogger<TunnelV3> logger, IOptions<ServiceOptions> options, IHttpClientFactory httpClientFactory)
-        : base(logger, options, httpClientFactory)
-    {
-    }
 
     private enum TunnelCommand : byte
     {

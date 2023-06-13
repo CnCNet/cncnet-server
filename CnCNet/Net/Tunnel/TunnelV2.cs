@@ -4,17 +4,13 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 
-internal sealed class TunnelV2 : Tunnel
+internal sealed class TunnelV2(ILogger<TunnelV2> logger, IOptions<ServiceOptions> options, IHttpClientFactory httpClientFactory)
+    : Tunnel(logger, options, httpClientFactory)
 {
     private const int PlayerIdSize = sizeof(short);
     private const int MaxRequestsGlobal = 1000;
     private const int MinGameClients = 2;
     private const int MaxGameClients = 8;
-
-    public TunnelV2(ILogger<TunnelV2> logger, IOptions<ServiceOptions> options, IHttpClientFactory httpClientFactory)
-        : base(logger, options, httpClientFactory)
-    {
-    }
 
     protected override int Version => 2;
 

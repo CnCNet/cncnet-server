@@ -3,7 +3,7 @@
 using System.Buffers;
 using System.Collections.Concurrent;
 
-internal sealed class PeerToPeerUtil : IAsyncDisposable
+internal sealed class PeerToPeerUtil(ILogger<PeerToPeerUtil> logger) : IAsyncDisposable
 {
     private const int CounterResetInterval = 60; // Reset counter every X s
     private const int MaxRequestsPerIp = 20; // Max requests during one CounterResetInterval period
@@ -12,12 +12,6 @@ internal sealed class PeerToPeerUtil : IAsyncDisposable
 
     private readonly ConcurrentDictionary<int, int> connectionCounter = new();
     private readonly PeriodicTimer connectionCounterTimer = new(TimeSpan.FromSeconds(CounterResetInterval));
-    private readonly ILogger logger;
-
-    public PeerToPeerUtil(ILogger<PeerToPeerUtil> logger)
-    {
-        this.logger = logger;
-    }
 
     public ValueTask StartAsync(int listenPort, CancellationToken cancellationToken)
     {
