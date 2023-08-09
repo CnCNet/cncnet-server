@@ -6,23 +6,16 @@ using System.Net.NetworkInformation;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 
-internal abstract class Tunnel : IAsyncDisposable
+internal abstract class Tunnel(ILogger logger, IOptions<ServiceOptions> serviceOptions, IHttpClientFactory httpClientFactory)
+    : IAsyncDisposable
 {
     private const int PingRequestPacketSize = 50;
     private const int PingResponsePacketSize = 12;
 
-    private readonly IHttpClientFactory httpClientFactory;
     private readonly ConcurrentDictionary<int, int>? pingCounter = new();
 
     private PeriodicTimer? heartbeatTimer;
     private IPAddress? secondaryIpAddress;
-
-    protected Tunnel(ILogger logger, IOptions<ServiceOptions> serviceOptions, IHttpClientFactory httpClientFactory)
-    {
-        this.httpClientFactory = httpClientFactory;
-        ServiceOptions = serviceOptions;
-        Logger = logger;
-    }
 
     protected abstract int Version { get; }
 
@@ -30,9 +23,9 @@ internal abstract class Tunnel : IAsyncDisposable
 
     protected abstract int MinimumPacketSize { get; }
 
-    protected ILogger Logger { get; }
+    protected ILogger Logger { get; } = logger;
 
-    protected IOptions<ServiceOptions> ServiceOptions { get; }
+    protected IOptions<ServiceOptions> ServiceOptions { get; } = serviceOptions;
 
     protected bool MaintenanceModeEnabled { get; set; }
 
